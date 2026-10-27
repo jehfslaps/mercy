@@ -1,0 +1,27 @@
+diff --git a/src/mac_gl.m b/src/mac_gl.m
+index 57dfc41..5659888 100644
+--- a/src/mac_gl.m
++++ b/src/mac_gl.m
+@@ -70,6 +70,22 @@ ensureHint(PuglView* const view, const PuglViewHint hint, const int value)
+   NSOpenGLPixelFormat* pixelFormat =
+     [[NSOpenGLPixelFormat alloc] initWithAttributes:pixelAttribs];
+ 
++  // MERCY patch: without a hardware renderer (virtual machines, some setups) the request above fails
++  // and the default pixel format has no stencil buffer, so NanoVG fills concave shapes as solid boxes.
++  // Retry without NSOpenGLPFAAccelerated, then with a minimal format that still has the stencil.
++  if (!pixelFormat) {
++    pixelAttribs[1] = NSOpenGLPFAAllowOfflineRenderers;
++    pixelFormat = [[NSOpenGLPixelFormat alloc] initWithAttributes:pixelAttribs];
++  }
++  if (!pixelFormat) {
++    NSOpenGLPixelFormatAttribute minimalAttribs[] = {
++      NSOpenGLPFADoubleBuffer,
++      NSOpenGLPFAOpenGLProfile, profile,
++      NSOpenGLPFAStencilSize, (unsigned)puglview->hints[PUGL_STENCIL_BITS],
++      0};
++    pixelFormat = [[NSOpenGLPixelFormat alloc] initWithAttributes:minimalAttribs];
++  }
++
+   if (pixelFormat) {
+     self = [super initWithFrame:frame pixelFormat:pixelFormat];
+     [pixelFormat release];
