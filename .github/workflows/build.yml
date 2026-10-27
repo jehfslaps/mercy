@@ -201,6 +201,7 @@ jobs:
           python3 tools/compare_screens.py art/screens-reference art/screens-mac out/screens-compare || echo "LOOK_FAILED=1" >> $GITHUB_ENV
           cat out/screens-compare/report.md >> $GITHUB_STEP_SUMMARY
           if [ -f out/screens-compare/map.txt ]; then echo "::notice title=Where the Mac screenshot differs::$(awk '{printf "%s%%0A", $0}' out/screens-compare/map.txt)"; fi
+          if [ -f out/screens-compare/art.txt ]; then echo "::notice title=Difference close-up::$(awk '{printf "%s%%0A", $0}' out/screens-compare/art.txt)"; fi
           echo "::notice title=Look reference vs Mac::$(grep -E '\| s_' out/screens-compare/report.md | awk -F'|' '{printf "%s %s %s;", $2, $3, $4}')"
       - uses: actions/upload-artifact@v4
         with:
