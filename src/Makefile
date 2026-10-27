@@ -7,8 +7,9 @@ FILES_UI += MercyMac.mm
 endif
 DPF_TARGET_DIR ?= ../bin/linux
 DPF_BUILD_DIR ?= ../build/linux
-# MERCY's fixes on top of DPF (patches/*.patch), applied once to the dpf submodule before building
-DPF_PATCHED := $(shell cd ../dpf && for p in ../patches/*.patch; do git apply --reverse --check "$$p" 2>/dev/null || git apply "$$p"; done)
+# MERCY's fixes on top of DPF (patches/dpf) and its pugl (patches/pugl), applied once before building
+DPF_PATCHED := $(shell cd ../dpf && for p in ../patches/dpf/*.patch; do git apply --reverse --check "$$p" 2>/dev/null || git apply "$$p"; done)
+PUGL_PATCHED := $(shell cd ../dpf/dgl/src/pugl-upstream && for p in ../../../../patches/pugl/*.patch; do git apply --reverse --check "$$p" 2>/dev/null || git apply "$$p"; done)
 include ../dpf/Makefile.plugins.mk
 # strict floating point: the same arithmetic on every compiler and CPU, so Windows and Mac sound
 # bit-identical (DPF turns on -ffast-math by default; this turns it back off). See MercyMath.hpp.
