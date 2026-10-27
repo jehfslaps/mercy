@@ -45,6 +45,18 @@ for n in names:
                 c = sum(1 for yy in range(cy * 20, cy * 20 + 20, 2) for xx in range(cx * 20, cx * 20 + 20, 2) if px[xx, yy] >= 48)
                 row += '#' if c > 30 else ('+' if c > 3 else '.')
             rows.append(row)
+        # text-art of the differing area in both images (grey ramp, 4 px per character)
+        if box:
+            x0, y0 = max(0, box[0] - 8), max(0, box[1] - 8)
+            x1, y1 = min(960, box[2] + 8), min(600, box[3] + 8)
+            ramp = ' .:-=+*#%@'
+            def art(img):
+                g = img.convert('L').crop((x0, y0, x1, y1)).resize(((x1 - x0) // 5, (y1 - y0) // 10))
+                gp = g.load()
+                return [''.join(ramp[gp[i, j] * (len(ramp) - 1) // 255] for i in range(g.size[0])) for j in range(g.size[1])]
+            ra, rb = art(a), art(b)
+            rows.append(f'crop x {x0}-{x1} y {y0}-{y1}: reference | mac')
+            rows += [l + ' | ' + r for l, r in zip(ra, rb)]
         with open(os.path.join(out, 'map.txt'), 'w') as f:
             f.write(n + '\n' + '\n'.join(rows) + '\n')
     sheet = Image.new('RGB', (960 * 3, 600))
