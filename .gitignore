@@ -1,0 +1,8 @@
+bin/
+build/
+out/
+test/libdgl-linux.a
+test/shot
+*.d
+*.o
+.DS_Store

@@ -1,0 +1,82 @@
+Building Mercy from source
+--------------------------
+Framework: DPF  https://github.com/DISTRHO/DPF  (commit 4238e1c7f0351bbe488d79f0899c540543ac7583,
+a git submodule at dpf/; clone with --recursive)
+Formats (1.9+): Windows VST3. Mac VST3 + AU, Apple Silicon (arm64) only. No CLAP (Linux builds it for tests).
+Automatic builds: .github/workflows/build.yml (Windows + Mac on GitHub, sound + look checks).
+
+0. Mac build (on a Mac with Xcode command line tools):
+     cd src && make BUILD_DIR_SUFFIX=-mac DPF_BUILD_DIR=../build/mac DPF_TARGET_DIR=../bin/mac
+   -> bin/mac/Mercy.vst3 and bin/mac/Mercy.component (arm64, macOS 11+). Mac-only code: src/MercyMac.mm
+   (drag and drop in/out, keyboard focus). Bakes: ~/Documents/Mercy Bakes.
+   Presets: ~/Library/Application Support/Mercy/user_presets.txt (same file format as Windows).
+1. git clone --recursive (DPF comes along as the submodule)
+2. Windows build from Linux (MinGW-w64, posix threads):
+     cd src
+     make BUILD_DIR_SUFFIX=-win DPF_BUILD_DIR=../build/win DPF_TARGET_DIR=../bin/win \
+          CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++ AR=x86_64-w64-mingw32-ar \
+          WINDRES=x86_64-w64-mingw32-windres
+3. Native Linux build:  cd src && make
+4. Same sound everywhere (1.9): strict floating point (-fno-fast-math -ffp-contract=off) and MERCY's own
+   math functions (src/MercyMath.hpp, fdlibm-based) instead of each OS's math library, plus denormals
+   flushed the same way on x86 and ARM (DenormalGuard in MercyDSP.hpp). Result: bit-identical renders on
+   Windows, Mac, Linux, x86 and ARM. Check: test/render.cpp ("make render" builds it with the plugin's
+   exact flags) renders 85 scenarios (all factory presets 1x/2x, the three era demos, automation, sample
+   rates, block sizes, chain order, bake); "mercy-render --compare dirA dirB" diffs two platforms.
+   test/mathtest.cpp checks MercyMath accuracy against libm and prints a cross-platform checksum.
+   Factory presets live in src/MercyPresets.hpp (shared by the UI and the sound check).
+5. Screenshots: tools/screenshots.sh linux|mac <outdir>; tools/compare_screens.py ref mac out.
+   Packaging: tools/package.sh windows|mac <bindir> <version>.
+6. Tests: test/dsptest.cpp (engine stress), test/trtest.cpp (transient vs reference),
+          test/shtest.cpp (run the engine on raw f32 audio with symbol=value params)
+
+Transient stage - measured from Ableton Beats mode, Preserve Transients, Loop Off:
+  fade rate (dB/ms) = 0.56 * exp(-0.03736 * envelope), envelope 100 = off
+  restart: linear glide to unity over 1.45 ms; detection: full-band + 9 kHz band,
+  30 ms refractory, +6 dB louder retrigger after 8 ms, restart 3.5 ms before detection.
+
+Shape stage (transient shaper):
+  detector: mode-filtered mono (kick LP 180 / snare 150-6k / bus 40-16k), short RMS
+  attack = fast-attack vs slow-attack follower difference (dB), sustain = slow-release
+  vs fast-release difference, sustain muted during the attack phase. Focus = same
+  signals applied through a band-pass (kick 65 Hz, snare 240 Hz, bus 4 kHz).
+  Gains are computed on the un-delayed input and applied to the delayed audio
+  1 ms early (+ half the detector smoothing), using the existing 5 ms look-ahead.
+
+Output filters: RBJ high/low-pass, Q 0.5 (soft knee), after auto gain, before mix.
+
+Chain order state: 8 digits (default "67012345"). Older 6- and 7-digit orders
+are upgraded by normalizeOrder() in MercyDSP.hpp.
+
+Bake (MercyBake.cpp, MercyDnD.cpp):
+  renderBake(): private Engine at the file's sample rate, 2x quality, bypass ignored. Warm-up runs whole
+  loop passes (>= 12 s, capped at 60 s) ending on the file's last sample, then the look-ahead is flushed
+  with the loop start and the output is trimmed by the latency -> same length, seamless wrap.
+  Baker: background thread + queue; single mode replaces, bulk appends; re-bake cancels and restarts.
+  File IO: dr_wav (wav/aiff), dr_flac, dr_mp3 (public domain / MIT-0). Output 24-bit, or 32-bit float if
+  the render peaks above 0 dBFS. Folder: Documents\Mercy Bakes.
+  Windows drag and drop: IDropTarget via RegisterDragDrop for drops; SHCreateDataObject + DoDragDrop to
+  drag baked files out (same data as an Explorer drag). Links ole32/uuid/shell32.
+  Mac (MercyMac.mm): NSDraggingDestination methods added to pugl's view class at run time + file-URL
+  pasteboard for drops; NSDraggingSession with NSURL items (+ a run-time NSDraggingSource class named
+  per binary) to drag bakes out. Linux: stubs.
+  Tests: test/baketest.cpp (bake vs live, loop seam), test/workertest.cpp (queue, cancel, naming),
+  test/fmttest.cpp (input formats).
+
+Interface session (MercySession.hpp, v1.6):
+  The plugin owns a Session (values, chain order, page, bake panel, bulk mode, bake list + worker,
+  preset index, A/B). The UI gets it through DISTRHO_PLUGIN_WANT_DIRECT_ACCESS
+  (sessionFromPluginInstance), so closing/reopening the window restores everything and bakes keep going.
+  Page/bake/preset/A-B are also written as plugin state "ui" (saved with the project); a saved state is
+  only applied while the session hasn't been changed live. Tests: test/persist.cpp, test/statetest.c.
+
+Interface v1.7 (MercyView.hpp, font_mercy.h):
+  Design source: 960x600 design units, scaled to the window. Two themes (makeTheme(dark)), Session::dark,
+  saved in the "ui" state as dark=0/1 (default dark).
+  Fonts embedded from static instances: Archivo 500/550/600/700, Unbounded 800, JetBrains Mono 400/700
+  (OFL). font_mercy.h also carries per-font metrics (ascent/descent/advances) and GPOS pair kerning so
+  text lands where a browser would put it: proportional text is placed glyph by glyph.
+  Grain: 256x256 RGBA noise texture drawn over everything (dark specks on light, light specks on dark).
+  Live specimen: Session::Scope keeps 180 peak bins (1 s) of input and output, written by the audio
+  thread in run() (input scanned before processing, output after), read lock-free by the UI.
+  Screenshots: test/shot.cpp + test/shots.sh (Xvfb).

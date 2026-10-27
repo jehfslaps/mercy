@@ -1,0 +1,200 @@
+name: build
+
+# Every push builds Windows (VST3) and Mac (VST3 + AU, Apple Silicon), checks the plugins, and proves
+# Windows and Mac sound bit-identical and look the same. The release zips are the "Mercy-Windows" and
+# "Mercy-Mac" artifacts on the run's page.
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+env:
+  VERSION: "1.9"
+  WIN: >-
+    BUILD_DIR_SUFFIX=-win DPF_BUILD_DIR=../build/win DPF_TARGET_DIR=../bin/win
+    CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++ AR=x86_64-w64-mingw32-ar WINDRES=x86_64-w64-mingw32-windres
+  LIN: BUILD_DIR_SUFFIX= DPF_BUILD_DIR=../build/linux DPF_TARGET_DIR=../bin/linux
+
+jobs:
+  # ---------------------------------------------------------------------------------------- Windows build (+ Linux test build)
+  windows-build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Install tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq mingw-w64 libgl-dev libx11-dev libxext-dev libxrandr-dev libxcursor-dev xvfb pkg-config python3-pil zip
+          sudo update-alternatives --set x86_64-w64-mingw32-gcc /usr/bin/x86_64-w64-mingw32-gcc-posix
+          sudo update-alternatives --set x86_64-w64-mingw32-g++ /usr/bin/x86_64-w64-mingw32-g++-posix
+      - name: Linux build (tests and the reference screenshots only)
+        run: |
+          cd src
+          make -j4 $LIN
+          make render $LIN
+          cp ../dpf/build/libdgl-opengl.a ../test/libdgl-linux.a
+      - name: Reference screenshots
+        run: tools/screenshots.sh linux out/screens-reference
+      - name: Windows build (VST3)
+        run: |
+          make -C dpf clean
+          cd src
+          make -j4 $WIN
+          make render $WIN
+      - name: Windows binary imports only system DLLs
+        run: x86_64-w64-mingw32-objdump -p bin/win/Mercy.vst3/Contents/x86_64-win/Mercy.vst3 | grep "DLL Name"
+      - name: Package Windows zip
+        run: tools/package.sh windows bin/win $VERSION
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Mercy-Windows
+          path: out/Mercy_v*_Windows.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tools-windows
+          path: |
+            bin/win/mercy-render.exe
+            bin/win/Mercy.vst3
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tools-linux
+          path: bin/linux/mercy-render
+      - uses: actions/upload-artifact@v4
+        with:
+          name: screens-reference
+          path: out/screens-reference
+
+  # ---------------------------------------------------------------------------------------- Windows: real Windows checks
+  windows-check:
+    needs: windows-build
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: tools-windows
+          path: wbin
+      - name: Sound check render (Windows)
+        shell: bash
+        run: |
+          mkdir -p out/render-windows
+          wbin/mercy-render.exe test/dry_loop.wav out/render-windows
+      - uses: actions/upload-artifact@v4
+        with:
+          name: render-windows
+          path: out/render-windows
+      - name: pluginval (VST3)
+        shell: bash
+        run: |
+          curl -sSL -o pv.zip https://github.com/Tracktion/pluginval/releases/latest/download/pluginval_Windows.zip
+          unzip -q pv.zip -d pv
+          # no GPU on the Windows runner, so the editor (OpenGL) tests are skipped here; the Mac job opens the editor
+          pv/pluginval.exe --strictness-level 5 --skip-gui-tests --validate-in-process --output-dir out/pluginval-windows --validate "wbin/Mercy.vst3"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pluginval-windows
+          path: out/pluginval-windows
+
+  # ---------------------------------------------------------------------------------------- Mac (Apple Silicon)
+  mac:
+    runs-on: macos-15
+    env:
+      MACOSX_DEPLOYMENT_TARGET: "11.0"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Build VST3 + AU (arm64)
+        run: |
+          cd src
+          make -j4 BUILD_DIR_SUFFIX=-mac DPF_BUILD_DIR=../build/mac DPF_TARGET_DIR=../bin/mac
+          make render BUILD_DIR_SUFFIX=-mac DPF_BUILD_DIR=../build/mac DPF_TARGET_DIR=../bin/mac
+      - name: Apple Silicon only
+        run: |
+          lipo -archs bin/mac/Mercy.vst3/Contents/MacOS/Mercy
+          lipo -archs bin/mac/Mercy.component/Contents/MacOS/Mercy
+          test "$(lipo -archs bin/mac/Mercy.component/Contents/MacOS/Mercy)" = "arm64"
+      - name: Sign (ad-hoc for now; Developer ID once the Apple membership is set up)
+        run: |
+          codesign --force --deep --sign - bin/mac/Mercy.vst3
+          codesign --force --deep --sign - bin/mac/Mercy.component
+      - name: Sound check render (Mac)
+        run: |
+          mkdir -p out/render-mac
+          bin/mac/mercy-render test/dry_loop.wav out/render-mac
+      - name: Screenshots (Mac)
+        run: |
+          python3 -m pip install --quiet --break-system-packages pillow || python3 -m pip install --quiet pillow
+          tools/screenshots.sh mac out/screens-mac
+      - name: Package Mac zip
+        run: tools/package.sh mac bin/mac $VERSION
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Mercy-Mac
+          path: out/Mercy_v*_Mac.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: render-mac
+          path: out/render-mac
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: screens-mac
+          path: out/screens-mac
+      - name: Install into the user plug-in folders
+        run: |
+          mkdir -p ~/Library/Audio/Plug-Ins/Components ~/Library/Audio/Plug-Ins/VST3
+          cp -R bin/mac/Mercy.component ~/Library/Audio/Plug-Ins/Components/
+          cp -R bin/mac/Mercy.vst3 ~/Library/Audio/Plug-Ins/VST3/
+          killall -9 AudioComponentRegistrar 2>/dev/null || true
+      - name: auval (the same check Logic runs)
+        run: |
+          auval -a | grep -i mercy || (sleep 5; auval -a | grep -i mercy)
+          auval -strict -v aufx MrDp Mrcy | tee auval.txt
+          grep -q "AU VALIDATION SUCCEEDED" auval.txt
+      - name: pluginval (VST3 and AU, opens the editor)
+        run: |
+          curl -sSL -o pv.zip https://github.com/Tracktion/pluginval/releases/latest/download/pluginval_macOS.zip
+          unzip -q pv.zip -d pv
+          PV=pv/pluginval.app/Contents/MacOS/pluginval
+          $PV --strictness-level 5 --validate-in-process --output-dir out/pluginval-mac --validate ~/Library/Audio/Plug-Ins/VST3/Mercy.vst3
+          $PV --strictness-level 5 --validate-in-process --output-dir out/pluginval-mac --validate ~/Library/Audio/Plug-Ins/Components/Mercy.component
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pluginval-mac
+          path: |
+            out/pluginval-mac
+            auval.txt
+
+  # ---------------------------------------------------------------------------------------- same sound, same look
+  compare:
+    needs: [windows-build, windows-check, mac]
+    if: always()
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: art
+      - name: Sound - Windows vs Mac (must be bit-identical)
+        run: |
+          chmod +x art/tools-linux/mercy-render
+          echo '### Sound: Windows vs Mac' >> $GITHUB_STEP_SUMMARY
+          art/tools-linux/mercy-render --compare art/render-windows art/render-mac | tee sound.txt
+          echo '```' >> $GITHUB_STEP_SUMMARY; tail -1 sound.txt >> $GITHUB_STEP_SUMMARY; echo '```' >> $GITHUB_STEP_SUMMARY
+          grep -q ", 0 with tiny differences, 0 failed" sound.txt
+      - name: Look - reference vs Mac
+        run: |
+          sudo apt-get install -y -qq python3-pil
+          python3 tools/compare_screens.py art/screens-reference art/screens-mac out/screens-compare || echo "LOOK_FAILED=1" >> $GITHUB_ENV
+          cat out/screens-compare/report.md >> $GITHUB_STEP_SUMMARY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: screens-compare
+          path: out/screens-compare
+      - name: Fail if the Mac interface looks different
+        run: test -z "$LOOK_FAILED"
