@@ -35,6 +35,18 @@ for n in names:
     box = diff.point(lambda v: 255 if v >= 48 else 0).getbbox()
     where = f' (area x {box[0]}-{box[2]}, y {box[1]}-{box[3]})' if box and not ok else ''
     lines.append(f'| {n} | {big:.3f}%{where} | {"ok" if ok else "FAIL"} |')
+    if not ok and not os.path.exists(os.path.join(out, 'map.txt')):
+        # coarse text map of where the difference is (48 x 30 cells of 20 px): '#' many, '+' some
+        rows = []
+        px = diff.load()
+        for cy in range(30):
+            row = ''
+            for cx in range(48):
+                c = sum(1 for yy in range(cy * 20, cy * 20 + 20, 2) for xx in range(cx * 20, cx * 20 + 20, 2) if px[xx, yy] >= 48)
+                row += '#' if c > 30 else ('+' if c > 3 else '.')
+            rows.append(row)
+        with open(os.path.join(out, 'map.txt'), 'w') as f:
+            f.write(n + '\n' + '\n'.join(rows) + '\n')
     sheet = Image.new('RGB', (960 * 3, 600))
     sheet.paste(a, (0, 0))
     sheet.paste(b, (960, 0))

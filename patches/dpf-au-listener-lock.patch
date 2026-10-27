@@ -1,0 +1,84 @@
+diff --git a/distrho/src/DistrhoPluginAU.cpp b/distrho/src/DistrhoPluginAU.cpp
+index 919faa71..ab4a0c5e 100644
+--- a/distrho/src/DistrhoPluginAU.cpp
++++ b/distrho/src/DistrhoPluginAU.cpp
+@@ -30,6 +30,7 @@
+ #include <AudioToolbox/AudioUnitUtilities.h>
+ 
+ #include <map>
++#include <mutex>
+ #include <vector>
+ 
+ #ifndef DISTRHO_PLUGIN_BRAND_ID
+@@ -1712,12 +1713,14 @@ public:
+             prop, proc, userData
+         };
+ 
++        const std::lock_guard<std::recursive_mutex> lock(fPropertyListenersMutex);
+         fPropertyListeners.push_back(pl);
+         return noErr;
+     }
+ 
+     OSStatus auRemovePropertyListener(const AudioUnitPropertyID prop, const AudioUnitPropertyListenerProc proc)
+     {
++        const std::lock_guard<std::recursive_mutex> lock(fPropertyListenersMutex);
+         for (PropertyListeners::iterator it = fPropertyListeners.begin(); it != fPropertyListeners.end(); ++it)
+         {
+             const PropertyListener& pl(*it);
+@@ -1736,6 +1739,7 @@ public:
+                                                   const AudioUnitPropertyListenerProc proc,
+                                                   void* const userData)
+     {
++        const std::lock_guard<std::recursive_mutex> lock(fPropertyListenersMutex);
+         for (PropertyListeners::iterator it = fPropertyListeners.begin(); it != fPropertyListeners.end(); ++it)
+         {
+             const PropertyListener& pl(*it);
+@@ -2188,6 +2192,9 @@ private:
+     // AUv2 related fields
+     OSStatus fLastRenderError;
+     PropertyListeners fPropertyListeners;
++    // the listener list is changed on the main thread (editor opened/closed) while the audio thread
++    // notifies output parameter changes: guard it (the audio thread only try-locks)
++    std::recursive_mutex fPropertyListenersMutex;
+     RenderListeners fRenderListeners;
+   #if DISTRHO_PLUGIN_NUM_INPUTS != 0
+     UInt32 fInputConnectionBus;
+@@ -2248,6 +2255,20 @@ private:
+     // ----------------------------------------------------------------------------------------------------------------
+ 
+     void notifyPropertyListeners(const AudioUnitPropertyID prop, const AudioUnitScope scope, const AudioUnitElement elem)
++    {
++        const std::lock_guard<std::recursive_mutex> lock(fPropertyListenersMutex);
++        notifyPropertyListenersLocked(prop, scope, elem);
++    }
++
++    // audio thread: never wait for the main thread; if the list is busy, skip this notification
++    void notifyPropertyListenersFromAudioThread(const AudioUnitPropertyID prop, const AudioUnitScope scope, const AudioUnitElement elem)
++    {
++        std::unique_lock<std::recursive_mutex> lock(fPropertyListenersMutex, std::try_to_lock);
++        if (lock.owns_lock())
++            notifyPropertyListenersLocked(prop, scope, elem);
++    }
++
++    void notifyPropertyListenersLocked(const AudioUnitPropertyID prop, const AudioUnitScope scope, const AudioUnitElement elem)
+     {
+         for (PropertyListeners::iterator it = fPropertyListeners.begin(); it != fPropertyListeners.end(); ++it)
+         {
+@@ -2409,7 +2430,7 @@ private:
+                 // TODO flag param only, notify listeners later on bg thread (sem_post etc)
+                 event.mArgument.mParameter.mParameterID = i;
+                 AUEventListenerNotify(NULL, NULL, &event);
+-                notifyPropertyListeners('DPFp', kAudioUnitScope_Global, i);
++                notifyPropertyListenersFromAudioThread('DPFp', kAudioUnitScope_Global, i);
+             }
+         }
+     }
+@@ -2420,7 +2441,7 @@ private:
+             return;
+ 
+         fLastRenderError = err;
+-        notifyPropertyListeners(kAudioUnitProperty_LastRenderError, kAudioUnitScope_Global, 0);
++        notifyPropertyListenersFromAudioThread(kAudioUnitProperty_LastRenderError, kAudioUnitScope_Global, 0);
+     }
+ 
+     // ----------------------------------------------------------------------------------------------------------------
