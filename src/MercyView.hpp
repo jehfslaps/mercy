@@ -266,11 +266,15 @@ struct Ctl {
 
 class MercyView {
 private:
-    std::unique_ptr<Session> ownSess;
+    // keeps the session alive while this view exists, even if the plugin instance goes first
+    // (an AU host can dispose the plugin before the editor's NSView is released)
+    std::shared_ptr<Session> sessRef;
     Session& S;
 
 public:
-    explicit MercyView(ViewHost* h, Session* s = nullptr) : ownSess(s ? nullptr : new Session()), S(s ? *s : *ownSess), host(h) {
+    explicit MercyView(ViewHost* h, Session* s = nullptr) : sessRef(s ? nullptr : std::make_shared<Session>()), S(s ? *s : *sessRef), host(h) { init(); }
+    MercyView(ViewHost* h, std::shared_ptr<Session> s) : sessRef(s ? std::move(s) : std::make_shared<Session>()), S(*sessRef), host(h) { init(); }
+    void init() {
         if (!S.touched && !S.savedUi.empty()) applyUiState(S.savedUi.c_str());
         lastUiState = encodeUiState();
         if (S.bakeOpen && S.baker) bakeItems = S.baker->snapshot();

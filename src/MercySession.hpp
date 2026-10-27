@@ -83,7 +83,8 @@ struct Session {
     Scope scope;               // live waveform history (filled by the plugin's audio thread)
 };
 
-// implemented by the plugin: the session belonging to a plugin instance (nullptr if not available)
-Session* sessionFromPluginInstance(void* pluginInstance);
+// implemented by the plugin: the session belonging to a plugin instance (empty if not available).
+// Shared, so the interface can safely outlive the plugin instance.
+std::shared_ptr<Session> sessionFromPluginInstance(void* pluginInstance);
 
 } // namespace mercy

@@ -102,7 +102,7 @@ protected:
     void setState(const char* key, const char* value) override
     {
         if (std::strcmp(key, "ui") == 0) {
-            fSession.savedUi = value != nullptr ? value : "";
+            fSession->savedUi = value != nullptr ? value : "";
             return;
         }
         if (std::strcmp(key, "order") == 0 && value != nullptr) {
@@ -115,26 +115,26 @@ protected:
     void activate() override
     {
         fEngine.setSampleRate(getSampleRate());
-        fSession.scope.setSampleRate(getSampleRate());
+        fSession->scope.setSampleRate(getSampleRate());
         setLatency(fEngine.latencySamples());
     }
     void sampleRateChanged(double sr) override
     {
         fEngine.setSampleRate(sr);
-        fSession.scope.setSampleRate(sr);
+        fSession->scope.setSampleRate(sr);
         setLatency(fEngine.latencySamples());
     }
 
     void run(const float** inputs, float** outputs, uint32_t frames) override
     {
-        fSession.scope.scanInput(inputs[0], inputs[1], frames);
+        fSession->scope.scanInput(inputs[0], inputs[1], frames);
         fEngine.process(inputs[0], inputs[1], outputs[0], outputs[1], frames);
-        fSession.scope.scanOutput(outputs[0], outputs[1], frames);
+        fSession->scope.scanOutput(outputs[0], outputs[1], frames);
     }
 
 public:
     // interface session: survives the plugin window being closed (see MercySession.hpp)
-    mercy::Session fSession;
+    std::shared_ptr<mercy::Session> fSession = std::make_shared<mercy::Session>();
 
 private:
     Engine fEngine;
@@ -147,8 +147,8 @@ Plugin* createPlugin() { return new MercyPlugin(); }
 
 END_NAMESPACE_DISTRHO
 
-mercy::Session* mercy::sessionFromPluginInstance(void* p)
+std::shared_ptr<mercy::Session> mercy::sessionFromPluginInstance(void* p)
 {
     if (p == nullptr) return nullptr;
-    return &static_cast<DISTRHO::MercyPlugin*>(static_cast<DISTRHO::Plugin*>(p))->fSession;
+    return static_cast<DISTRHO::MercyPlugin*>(static_cast<DISTRHO::Plugin*>(p))->fSession;
 }

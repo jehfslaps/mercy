@@ -1,7 +1,7 @@
 #!/bin/bash
 # Take interface screenshots with test/shot.cpp (the real MercyView, drawn by DPF/NanoVG).
 #   tools/screenshots.sh linux <outdir>   (needs test/libdgl-linux.a from the Linux build, runs under Xvfb)
-#   tools/screenshots.sh mac   <outdir>   (needs dpf/build/libdgl-opengl.a from the Mac build)
+#   tools/screenshots.sh mac   <outdir>   (needs dpf/build-mac/libdgl-opengl.a from the Mac build)
 set -e
 PLATFORM=$1
 OUT=$(mkdir -p "$2" && cd "$2" && pwd)
@@ -16,7 +16,8 @@ if [ "$PLATFORM" = "linux" ]; then
   g++ $FLAGS shot.cpp ../src/MercyBake.cpp libdgl-linux.a -o shot -lGL -lX11 -lXext -lXrandr -lXcursor -lpthread -ldl
   RUN="xvfb-run -a -s '-screen 0 2200x1400x24 +extension GLX'"
 elif [ "$PLATFORM" = "mac" ]; then
-  clang++ $FLAGS -Wno-deprecated-declarations shot.cpp ../src/MercyBake.cpp ../dpf/build/libdgl-opengl.a -o shot \
+  LIB=../dpf/build-mac/libdgl-opengl.a; [ -f "$LIB" ] || LIB=../dpf/build/libdgl-opengl.a
+  clang++ $FLAGS -Wno-deprecated-declarations shot.cpp ../src/MercyBake.cpp "$LIB" -o shot \
     -framework Cocoa -framework OpenGL -framework CoreVideo
   RUN=""
 else
