@@ -91,7 +91,7 @@ jobs:
           curl -sSL -o pv.zip https://github.com/Tracktion/pluginval/releases/latest/download/pluginval_Windows.zip
           unzip -q pv.zip -d pv
           # no GPU on the Windows runner, so the editor (OpenGL) tests are skipped here; the Mac job opens the editor
-          pv/pluginval.exe --strictness-level 5 --skip-gui-tests --validate-in-process --output-dir out/pluginval-windows --validate "wbin/Mercy.vst3"
+          tools/ci_run.sh "pluginval VST3 (Windows)" pv/pluginval.exe --strictness-level 5 --skip-gui-tests --validate-in-process --output-dir out/pluginval-windows --validate "wbin/Mercy.vst3"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -109,9 +109,9 @@ jobs:
           submodules: recursive
       - name: Build VST3 + AU (arm64)
         run: |
-          cd src
-          make -j4 BUILD_DIR_SUFFIX=-mac DPF_BUILD_DIR=../build/mac DPF_TARGET_DIR=../bin/mac
-          make render BUILD_DIR_SUFFIX=-mac DPF_BUILD_DIR=../build/mac DPF_TARGET_DIR=../bin/mac
+          MAC="BUILD_DIR_SUFFIX=-mac DPF_BUILD_DIR=../build/mac DPF_TARGET_DIR=../bin/mac"
+          tools/ci_run.sh "Mac build" make -C src -j4 $MAC
+          tools/ci_run.sh "Mac render tool" make -C src render $MAC
       - name: Apple Silicon only
         run: |
           lipo -archs bin/mac/Mercy.vst3/Contents/MacOS/Mercy
@@ -126,9 +126,8 @@ jobs:
           mkdir -p out/render-mac
           bin/mac/mercy-render test/dry_loop.wav out/render-mac
       - name: Screenshots (Mac)
-        run: |
-          python3 -m pip install --quiet --break-system-packages pillow || python3 -m pip install --quiet pillow
-          tools/screenshots.sh mac out/screens-mac
+        continue-on-error: true
+        run: tools/ci_run.sh "Mac screenshots" tools/screenshots.sh mac out/screens-mac
       - name: Package Mac zip
         run: tools/package.sh mac bin/mac $VERSION
       - uses: actions/upload-artifact@v4
@@ -152,16 +151,17 @@ jobs:
           killall -9 AudioComponentRegistrar 2>/dev/null || true
       - name: auval (the same check Logic runs)
         run: |
-          auval -a | grep -i mercy || (sleep 5; auval -a | grep -i mercy)
-          auval -strict -v aufx MrDp Mrcy | tee auval.txt
+          auval -a | grep -i mercy || (sleep 5; auval -a | grep -i mercy) || true
+          tools/ci_run.sh "auval" bash -c 'set -o pipefail; auval -strict -v aufx MrDp Mrcy | tee auval.txt' || true
+          echo "::notice title=auval::$(grep -E 'VALIDATION|FAIL|WARNING' auval.txt | head -5 | tr '\n' ' ')"
           grep -q "AU VALIDATION SUCCEEDED" auval.txt
       - name: pluginval (VST3 and AU, opens the editor)
         run: |
           curl -sSL -o pv.zip https://github.com/Tracktion/pluginval/releases/latest/download/pluginval_macOS.zip
           unzip -q pv.zip -d pv
           PV=pv/pluginval.app/Contents/MacOS/pluginval
-          $PV --strictness-level 5 --validate-in-process --output-dir out/pluginval-mac --validate ~/Library/Audio/Plug-Ins/VST3/Mercy.vst3
-          $PV --strictness-level 5 --validate-in-process --output-dir out/pluginval-mac --validate ~/Library/Audio/Plug-Ins/Components/Mercy.component
+          tools/ci_run.sh "pluginval VST3 (Mac)" $PV --strictness-level 5 --validate-in-process --output-dir out/pluginval-mac --validate ~/Library/Audio/Plug-Ins/VST3/Mercy.vst3
+          tools/ci_run.sh "pluginval AU (Mac)" $PV --strictness-level 5 --validate-in-process --output-dir out/pluginval-mac --validate ~/Library/Audio/Plug-Ins/Components/Mercy.component
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -186,12 +186,15 @@ jobs:
           echo '### Sound: Windows vs Mac' >> $GITHUB_STEP_SUMMARY
           art/tools-linux/mercy-render --compare art/render-windows art/render-mac | tee sound.txt
           echo '```' >> $GITHUB_STEP_SUMMARY; tail -1 sound.txt >> $GITHUB_STEP_SUMMARY; echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "::notice title=Sound Windows vs Mac::$(tail -1 sound.txt)"
+          art/tools-linux/mercy-render --compare art/render-windows art/render-mac | grep -v identical | head -20 | awk '{printf "%s%%0A", $0}' | sed 's/^/::notice title=Sound details::/'
           grep -q ", 0 with tiny differences, 0 failed" sound.txt
       - name: Look - reference vs Mac
         run: |
           sudo apt-get install -y -qq python3-pil
           python3 tools/compare_screens.py art/screens-reference art/screens-mac out/screens-compare || echo "LOOK_FAILED=1" >> $GITHUB_ENV
           cat out/screens-compare/report.md >> $GITHUB_STEP_SUMMARY
+          echo "::notice title=Look reference vs Mac::$(grep -E '\| s_' out/screens-compare/report.md | awk -F'|' '{printf "%s %s %s;", $2, $3, $4}')"
       - uses: actions/upload-artifact@v4
         with:
           name: screens-compare

@@ -26,7 +26,8 @@ fi
 for m in $MODES; do
   mode=${m%%:*}; dk=${m##*:}
   eval $RUN ./shot $mode "$OUT/s_${mode}_${dk}.ppm" 1 $dk || echo "screenshot $m failed"
-  if [ -f "$OUT/s_${mode}_${dk}.ppm" ]; then
+  # convert to png when Pillow is there (the Mac runner keeps the .ppm; the compare job reads either)
+  if [ -f "$OUT/s_${mode}_${dk}.ppm" ] && python3 -c "import PIL" 2>/dev/null; then
     python3 -c "from PIL import Image; Image.open('$OUT/s_${mode}_${dk}.ppm').save('$OUT/s_${mode}_${dk}.png')"
     rm "$OUT/s_${mode}_${dk}.ppm"
   fi

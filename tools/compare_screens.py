@@ -20,6 +20,8 @@ lines = ['| screenshot | pixels that differ noticeably | result |', '|---|---|--
 for n in names:
     p = os.path.join(test, n)
     if not os.path.exists(p):
+        p = os.path.join(test, n[:-4] + '.ppm')
+    if not os.path.exists(p):
         lines.append(f'| {n} | missing | FAIL |')
         failed += 1
         continue
