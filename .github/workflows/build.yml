@@ -109,7 +109,7 @@ jobs:
           submodules: recursive
       - name: Build VST3 + AU (arm64)
         run: |
-          MAC="BUILD_DIR_SUFFIX=-mac DPF_BUILD_DIR=../build/mac DPF_TARGET_DIR=../bin/mac"
+          MAC="BUILD_DIR_SUFFIX=-mac DPF_BUILD_DIR=../build/mac DPF_TARGET_DIR=../bin/mac SKIP_STRIPPING=true"
           tools/ci_run.sh "Mac build" make -C src -j4 $MAC
           tools/ci_run.sh "Mac render tool" make -C src render $MAC
       - name: Apple Silicon only
@@ -161,6 +161,12 @@ jobs:
           unzip -q pv.zip -d pv
           PV=pv/pluginval.app/Contents/MacOS/pluginval
           tools/ci_run.sh "pluginval VST3 (Mac)" $PV --strictness-level 5 --validate-in-process --output-dir out/pluginval-mac --validate ~/Library/Audio/Plug-Ins/VST3/Mercy.vst3
+          tools/ci_run.sh "pluginval AU no-editor (Mac)" $PV --strictness-level 5 --skip-gui-tests --validate-in-process --output-dir out/pluginval-mac --validate ~/Library/Audio/Plug-Ins/Components/Mercy.component && echo "::notice title=pluginval AU without editor tests::passed" || true
+          # under the debugger: if it crashes, report the backtrace of the crashing thread
+          lldb --batch -o "process handle SIGSEGV -s true -p false" -o run -k "bt 40" -k "register read pc" -k quit -- $PV --strictness-level 5 --validate-in-process --validate ~/Library/Audio/Plug-Ins/Components/Mercy.component > lldb.txt 2>&1 || true
+          if grep -q "stop reason" lldb.txt; then
+            echo "::error title=AU crash backtrace::$(grep -A 45 'stop reason' lldb.txt | head -60 | sed -e 's/%/%25/g' | awk '{printf "%s%%0A", $0}')"
+          fi
           tools/ci_run.sh "pluginval AU (Mac)" $PV --strictness-level 5 --validate-in-process --output-dir out/pluginval-mac --validate ~/Library/Audio/Plug-Ins/Components/Mercy.component
       - uses: actions/upload-artifact@v4
         if: always()

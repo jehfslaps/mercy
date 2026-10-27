@@ -32,7 +32,9 @@ for n in names:
     big = sum(hist[48:]) / (960 * 600) * 100   # differs by more than ~19%
     ok = big < 1.0
     failed += 0 if ok else 1
-    lines.append(f'| {n} | {big:.3f}% | {"ok" if ok else "FAIL"} |')
+    box = diff.point(lambda v: 255 if v >= 48 else 0).getbbox()
+    where = f' (area x {box[0]}-{box[2]}, y {box[1]}-{box[3]})' if box and not ok else ''
+    lines.append(f'| {n} | {big:.3f}%{where} | {"ok" if ok else "FAIL"} |')
     sheet = Image.new('RGB', (960 * 3, 600))
     sheet.paste(a, (0, 0))
     sheet.paste(b, (960, 0))
