@@ -12,7 +12,8 @@ WHAT'S NEW IN 1.9
   far below anything you can hear (around -110 dB).
 - CLAP is no longer included. Use the VST3 (FL Studio, Ableton, Cubase,
   Studio One, Reaper, Bitwig...) or the AU on Mac.
-- Shows up under "slapworx" in your plugin list.
+- Shows up under "slapworx" in your plugin list, and the slapworx logo sits
+  in the bottom-right corner of the window.
 
 
 WHAT'S NEW IN 1.8.1

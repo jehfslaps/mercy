@@ -17,10 +17,16 @@ public:
     }
 
 protected:
+#ifdef MERCY_SAUCE
+    const char* getLabel() const override { return "Sauce"; }
+    const char* getDescription() const override { return "Drum processor."; }
+    const char* getHomePage() const override { return "https://slapworx.com"; }
+#else
     const char* getLabel() const override { return "Mercy"; }
     const char* getDescription() const override { return "Drum break compression, saturation and lo-fi grit."; }
-    const char* getMaker() const override { return "slapworx"; }
     const char* getHomePage() const override { return "https://mercy.audio"; }
+#endif
+    const char* getMaker() const override { return "slapworx"; }
     const char* getLicense() const override { return "Proprietary"; }
     uint32_t getVersion() const override { return d_version(1, 9, 0); }
 
@@ -54,7 +60,11 @@ protected:
             p.enumValues.values = v;
         };
         switch (index) {
+#ifdef MERCY_SAUCE
+        case pEra: setEnum({"01", "02", "03"}); break; // what a host shows in automation
+#else
         case pEra: setEnum({"Fantasy", "Throne", "Yeezus"}); break;
+#endif
         case pQuality: setEnum({"1x", "2x"}); break;
         case pSmpMode: setEnum({"SP-12", "ASR", "MPC"}); break;
         case pPreFlavor: setEnum({"Console", "Tube", "Tape", "Xfmr"}); break;

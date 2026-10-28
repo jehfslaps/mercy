@@ -30,6 +30,16 @@
 extern char** environ;
 #endif
 
+#ifdef MERCY_SAUCE
+#define MERCY_BAKE_FOLDER "Sauce Bakes"
+#define MERCY_BAKE_FOLDER_W L"Sauce Bakes"
+#define MERCY_BAKE_TAG "_sauce_"
+#else
+#define MERCY_BAKE_FOLDER "Mercy Bakes"
+#define MERCY_BAKE_FOLDER_W L"Mercy Bakes"
+#define MERCY_BAKE_TAG "_mercy_"
+#endif
+
 namespace mercy {
 
 #ifdef _WIN32
@@ -98,19 +108,19 @@ std::string bakeFolder(bool create) {
         const DWORD n = GetEnvironmentVariableW(L"USERPROFILE", docs, MAX_PATH);
         if (n == 0 || n >= MAX_PATH) return "";
     }
-    std::wstring dir = std::wstring(docs) + L"\\Mercy Bakes";
+    std::wstring dir = std::wstring(docs) + L"\\" MERCY_BAKE_FOLDER_W;
     if (create) CreateDirectoryW(dir.c_str(), nullptr);
     return narrow(dir);
 #elif defined(__APPLE__)
     // ~/Documents/Mercy Bakes, using the real home folder (a sandboxed host's HOME points into its
     // container); if the host's sandbox won't let us write there, fall back to the host's own Documents
-    std::string dir = macHomeFolder() + "/Documents/Mercy Bakes";
+    std::string dir = macHomeFolder() + "/Documents/" MERCY_BAKE_FOLDER;
     if (create) {
         mkdir(dir.c_str(), 0755);
         if (access(dir.c_str(), W_OK) != 0) {
             const char* home = std::getenv("HOME");
             if (home != nullptr) {
-                const std::string alt = std::string(home) + "/Documents/Mercy Bakes";
+                const std::string alt = std::string(home) + "/Documents/" MERCY_BAKE_FOLDER;
                 mkdir((std::string(home) + "/Documents").c_str(), 0755);
                 mkdir(alt.c_str(), 0755);
                 if (access(alt.c_str(), W_OK) == 0) dir = alt;
@@ -120,7 +130,7 @@ std::string bakeFolder(bool create) {
     return dir;
 #else
     const char* home = std::getenv("HOME");
-    std::string dir = std::string(home ? home : "/tmp") + "/Mercy Bakes";
+    std::string dir = std::string(home ? home : "/tmp") + "/" MERCY_BAKE_FOLDER;
     if (create) mkdir(dir.c_str(), 0755);
     return dir;
 #endif
@@ -439,7 +449,7 @@ void Baker::run() {
 #else
             const std::string sep = "/";
 #endif
-            const std::string stem = dir + sep + fileBaseName(inPath) + "_mercy_" + slug(s.presetName);
+            const std::string stem = dir + sep + fileBaseName(inPath) + MERCY_BAKE_TAG + slug(s.presetName);
             outPath = stem + ".wav";
             for (int k = 2; fileExists(outPath) && k < 1000; ++k) outPath = stem + "_" + std::to_string(k) + ".wav";
             ok = writeWavFile(outPath, oL, oR, sr, asFloat, err);

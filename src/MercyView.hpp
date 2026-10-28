@@ -7,6 +7,7 @@
 #include "MercySession.hpp"
 #include "MercyPresets.hpp"
 #include "font_mercy.h"
+#include "logo_slapworx.h"
 #include <memory>
 #include <sstream>
 #include <string>
@@ -241,6 +242,11 @@ static bool parseValue(uint32_t p, const std::string& s, float& out) {
 // presets
 
 // factory presets: MercyPresets.hpp
+#ifdef MERCY_SAUCE
+static const char* const kAppFolder = "Sauce"; // its own user presets, so the real ones never show up
+#else
+static const char* const kAppFolder = "Mercy";
+#endif
 
 
 struct UserPreset { std::string name; Snapshot s; };
@@ -332,7 +338,7 @@ public:
         if (S.page == 0) drawFaderGuide(g);
 
         if (S.page == 1 && reorderFrom >= 0 && reorderMoved) drawReorderGhost(g);
-        txt(g, fMono, 8.5f, 918, 583, "by jehf slaps", T.ink, 2);
+        drawBrandMark(g);
         if (presetOpen) drawPresetPopup(g);
         if (S.page == 1 && S.bakeOpen) drawBakePanel(g);
         if (modOpen >= 0) drawModulePopup(g);
@@ -1490,7 +1496,11 @@ private:
     }
     int numPresets() const { return kNumFactory + (int)userPresets.size(); }
     std::string presetName(int i) const {
+#ifdef MERCY_SAUCE
+        if (i < kNumFactory) return sauceName(i);
+#else
         if (i < kNumFactory) return kFactory[i].name;
+#endif
         return userPresets[i - kNumFactory].name;
     }
     void loadPreset(int i) {
@@ -1506,12 +1516,12 @@ private:
 #ifdef _WIN32
         const char* app = std::getenv("APPDATA");
         if (app == nullptr) return "";
-        dir = std::string(app) + "\\Mercy";
+        dir = std::string(app) + "\\" + kAppFolder;
         if (makeDir) _mkdir(dir.c_str());
         return dir + "\\user_presets.txt";
 #elif defined(__APPLE__)
         const std::string home = macHomeFolder();
-        dir = home + "/Library/Application Support/Mercy";
+        dir = home + "/Library/Application Support/" + kAppFolder;
         if (makeDir) mkdir(dir.c_str(), 0755);
         return dir + "/user_presets.txt";
 #else
@@ -1707,7 +1717,7 @@ private:
     // ---------------------------------------------------------------- drawing toolkit
     Theme T = makeTheme(true);
     int fontIds[kNumFonts] = {-1, -1, -1, -1, -1, -1, -1};
-    NanoImage grainLight, grainDark;
+    NanoImage grainLight, grainDark, logoImg;
     uint32_t lastScopePos = 0;
     float figY[kNumStages] = {};
 
@@ -1747,6 +1757,60 @@ private:
         if (blur > 0.f) g.fontBlur(0.f);
     }
     float tw(int f, float size, const char* s) const { const float sp = defaultSpacing(f); return measureText(f, size, s, sp) - sp * size; }
+    // slapworx sticker wordmark, small, bottom right (replaces the old "by jehf slaps" credit)
+    void drawBrandMark(NanoVG& g) {
+        if (!logoImg.isValid()) return;
+        const float h = 16.5f, w = h * (float)mercylogo::slapworx_w / (float)mercylogo::slapworx_h;
+        const float x = 918.f - w, y = 587.f - h * .5f;
+        g.beginPath(); g.rect(x, y, w, h);
+        g.fillPaint(g.imagePattern(x, y, w, h, 0, logoImg, 1.f));
+        g.fill();
+    }
+#ifdef MERCY_SAUCE
+    // "Sauce" teaser build: names scribbled out with a black marker (a hand-drawn zigzag, the same
+    // every time for a given spot). Text is drawn first, then this goes on top.
+    void scribble(NanoVG& g, float x0, float y0, float x1, float y1, float width, uint32_t seed) {
+        Rng r(seed);
+        const Color ink = S.dark ? Color(6, 5, 7, 1.f) : Color(12, 11, 13, 1.f);
+        const Color rim = Color(64, 62, 68, .85f);
+        const Color sheen = S.dark ? Color(255, 255, 255, .13f) : Color(255, 255, 255, .09f);
+        const float h = y1 - y0;
+        std::vector<float> px, py;
+        for (int pass = 0; pass < 2; ++pass) {
+            px.clear(); py.clear();
+            const float step = width * (pass == 0 ? .95f : 1.3f);
+            bool up = pass == 0;
+            for (float x = x0 - 4 - r.range(0, 3); x < x1 + 4; x += step + r.range(-step * .25f, step * .25f)) {
+                px.push_back(x + r.range(-1.5f, 1.5f));
+                py.push_back((up ? y0 - h * .06f : y1 + h * .06f) + r.range(-h * .1f, h * .1f));
+                up = !up;
+            }
+            if (pass == 1) { // a loose final cross-out
+                const float mid = (y0 + y1) * .5f;
+                px.push_back(x1 + 5); py.push_back(mid + r.range(-2, 2));
+                px.push_back(x0 - 6); py.push_back(mid + h * .15f);
+                px.push_back(x1 + 2); py.push_back(mid - h * .2f);
+            }
+            // layers: 0 = rim (where the ink pools at the edge; shows the stroke on the dark theme),
+            // 1 = the ink, 2 = a soft glossy sheen along the stroke
+            for (int layer = 0; layer < 3; ++layer) {
+                if (layer == 0 && !S.dark) continue;
+                const float off = layer == 2 ? 1.f : 0.f;
+                g.beginPath();
+                for (size_t i = 0; i < px.size(); ++i) {
+                    const float xx = px[i] - off * width * .12f, yy = py[i] - off * width * .2f;
+                    if (i == 0) g.moveTo(xx, yy); else g.lineTo(xx, yy);
+                }
+                g.lineJoin(NanoVG::ROUND); g.lineCap(NanoVG::ROUND);
+                g.strokeColor(layer == 0 ? rim : (layer == 1 ? ink : sheen));
+                g.strokeWidth(layer == 0 ? width + 1.6f : (layer == 1 ? width : std::max(.8f, width * .38f)));
+                g.stroke();
+            }
+        }
+        g.lineJoin(NanoVG::MITER); g.lineCap(NanoVG::BUTT);
+    }
+    static std::string sauceName(int i) { char b[24]; std::snprintf(b, sizeof b, "sauce %02d", i + 1); return b; }
+#endif
     // the hero type: blurred, RGB-split
     void splitText(NanoVG& g, int f, float size, float x, float top, const char* s, Color main, float spacing = 99.f) {
         txt(g, f, size, x - 2.5f, top, s, alpha(T.red, .78f), 0, spacing, .55f);
@@ -1866,6 +1930,7 @@ private:
                                                unbounded_extrabold_size, jbmono_regular_size, jbmono_bold_size};
         const char* names[kNumFonts] = {"mg-500", "mg-550", "mg-600", "mg-700", "mw-800", "mm-400", "mm-700"};
         for (int i = 0; i < kNumFonts; ++i) fontIds[i] = g.createFontFromMemory(names[i], data[i], sizes[i], false);
+        logoImg = g.createImageFromMemory(mercylogo::slapworx_png, mercylogo::slapworx_png_size, NanoVG::IMAGE_GENERATE_MIPMAPS);
         // print grain: fine fractal-ish noise turned into sparse specks (dark specks on paper, light on ink)
         const int N = 256;
         std::vector<float> v((size_t)N * N), w((size_t)N * N);
@@ -1900,11 +1965,17 @@ private:
         cross(g, 42, 366, 4, T.ink);
         g.save(); g.translate(14, 350); g.rotate(-1.5707963f);
         splitText(g, fWide, 47, 0, 0, "mercy.", T.blue);
+#ifdef MERCY_SAUCE
+        scribble(g, 2, 6, tw(fWide, 47, "mercy."), 44, 7.5f, 11);
+#endif
         g.restore();
         g.save(); g.translate(34, 590); g.rotate(-1.5707963f);
         txt(g, fMono, 10.5f, 0, 0, "drum processor", T.grey, 0, .14f);
         g.restore();
         txt(g, fMono, 8.5f, 104, 14, "mercy / drum processor / v1.9", T.ink);
+#ifdef MERCY_SAUCE
+        scribble(g, 105, 15, 103 + measureText(fMono, 8.5f, "mercy", defaultSpacing(fMono)), 26, 3.2f, 12);
+#endif
         const char* co = S.page == 0 ? "x: 001 y: 006" : (S.bakeOpen ? "x: 003 y: 011" : "x: 002 y: 009");
         txt(g, fMono, 8.5f, 858, 14, co, T.ink, 2);
         ln(g, 104, 30, 940, 30, T.hair2);
@@ -1933,6 +2004,9 @@ private:
             const float yy = 140 + i * 22;
             txt(g, fMono, 8.5f, 500, yy, specK[i], T.ink);
             txt(g, fMono, 8.5f, 620, yy, specV[i], T.ink2, 2);
+#ifdef MERCY_SAUCE
+            if (i == 0) scribble(g, 620 - measureText(fMono, 8.5f, specV[0], defaultSpacing(fMono)), yy + 1, 620, yy + 12, 3.2f, 13);
+#endif
             ln(g, 500, yy + 15, 620, yy + 15, T.hair2);
         }
         cells(g, 500, 260, kCorner3, 3, 6, acc1());
@@ -2169,6 +2243,9 @@ private:
             static const char* nums[4] = {"01", "02", "03", "\xE2\x86\x97"};
             txt(g, fMono, 7.5f, x, 41, nums[c.id], T.ink);
             txt(g, f550, 21, x, 54, c.label.c_str(), (selEra || selPage) ? T.ink : (hov ? T.ink2 : T.grey));
+#ifdef MERCY_SAUCE
+            if (isEra) scribble(g, x, 58, x + tw(f550, 21, c.label.c_str()), 78, 5.5f, 20 + (uint32_t)c.id);
+#endif
             static const float uw[4] = {72, 62, 66, 92};
             const float w = uw[c.id];
             if (selEra) { rc(g, x, 83, w, S.page == 0 ? 3.f : 1.5f, acc1()); cells(g, x + w + 3, 79, kStep2, 2, 4, T.red); }

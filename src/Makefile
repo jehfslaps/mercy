@@ -1,5 +1,10 @@
 #!/usr/bin/make -f
+# "make SAUCE=true" builds Sauce, the teaser version (MERCY with the names scribbled out), as a CLAP
+ifeq ($(SAUCE),true)
+NAME = Sauce
+else
 NAME = Mercy
+endif
 FILES_DSP = MercyPlugin.cpp MercyBake.cpp
 FILES_UI  = MercyUI.cpp MercyDnD.cpp
 ifeq ($(shell uname -s),Darwin)
@@ -25,6 +30,10 @@ TARGETS = vst3 au
 else
 # Linux: only used for the tests and screenshots (clap is kept here for the state tests)
 TARGETS = vst3 clap
+endif
+ifeq ($(SAUCE),true)
+BUILD_CXX_FLAGS += -DMERCY_SAUCE
+TARGETS = clap
 endif
 all: $(TARGETS)
 
