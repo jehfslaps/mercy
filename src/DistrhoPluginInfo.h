@@ -2,13 +2,13 @@
 #define DISTRHO_PLUGIN_INFO_H_INCLUDED
 
 #define DISTRHO_PLUGIN_BRAND   "slapworx"
-#ifdef MERCY_SAUCE
-// "Sauce": the teaser build (CLAP, Windows). Its own name and IDs, so it installs next to MERCY.
-#define DISTRHO_PLUGIN_NAME    "Sauce"
-#define DISTRHO_PLUGIN_URI     "https://slapworx.com/plugins/sauce"
-#define DISTRHO_PLUGIN_CLAP_ID "com.slapworx.sauce"
+#ifdef MERCY_TEASER
+// "000": the teaser build (CLAP, Windows). Its own name and IDs, so it installs next to MERCY.
+#define DISTRHO_PLUGIN_NAME    "000"
+#define DISTRHO_PLUGIN_URI     "https://slapworx.com/plugins/000"
+#define DISTRHO_PLUGIN_CLAP_ID "com.slapworx.ooo"
 #define DISTRHO_PLUGIN_BRAND_ID  Slpx
-#define DISTRHO_PLUGIN_UNIQUE_ID Sauc
+#define DISTRHO_PLUGIN_UNIQUE_ID Z000
 #else
 #define DISTRHO_PLUGIN_NAME    "Mercy"
 #define DISTRHO_PLUGIN_URI     "https://mercy.audio/plugins/mercy"

@@ -45,16 +45,16 @@ jobs:
           make render $WIN
       - name: Windows binary imports only system DLLs
         run: x86_64-w64-mingw32-objdump -p bin/win/Mercy.vst3/Contents/x86_64-win/Mercy.vst3 | grep "DLL Name"
-      - name: Sauce (teaser build, Windows CLAP)
-        run: make -C src -j4 $WIN SAUCE=true
+      - name: 000 (teaser build, Windows CLAP)
+        run: make -C src -j4 $WIN TEASER=true
       - name: Package Windows zips
         run: |
           tools/package.sh windows bin/win $VERSION
-          tools/package.sh sauce bin/win $VERSION
+          tools/package.sh teaser bin/win $VERSION
       - uses: actions/upload-artifact@v4
         with:
-          name: Sauce-Windows
-          path: out/Sauce_Windows_CLAP.zip
+          name: 000-Windows
+          path: out/000_Windows_CLAP.zip
       - uses: actions/upload-artifact@v4
         with:
           name: Mercy-Windows

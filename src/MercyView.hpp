@@ -242,8 +242,8 @@ static bool parseValue(uint32_t p, const std::string& s, float& out) {
 // presets
 
 // factory presets: MercyPresets.hpp
-#ifdef MERCY_SAUCE
-static const char* const kAppFolder = "Sauce"; // its own user presets, so the real ones never show up
+#ifdef MERCY_TEASER
+static const char* const kAppFolder = "000"; // its own user presets, so the real ones never show up
 #else
 static const char* const kAppFolder = "Mercy";
 #endif
@@ -1496,8 +1496,8 @@ private:
     }
     int numPresets() const { return kNumFactory + (int)userPresets.size(); }
     std::string presetName(int i) const {
-#ifdef MERCY_SAUCE
-        if (i < kNumFactory) return sauceName(i);
+#ifdef MERCY_TEASER
+        if (i < kNumFactory) return teaserName(i);
 #else
         if (i < kNumFactory) return kFactory[i].name;
 #endif
@@ -1766,8 +1766,8 @@ private:
         g.fillPaint(g.imagePattern(x, y, w, h, 0, logoImg, 1.f));
         g.fill();
     }
-#ifdef MERCY_SAUCE
-    // "Sauce" teaser build: names scribbled out with a black marker (a hand-drawn zigzag, the same
+#ifdef MERCY_TEASER
+    // "000" teaser build: names scribbled out with a black marker (a hand-drawn zigzag, the same
     // every time for a given spot). Text is drawn first, then this goes on top.
     void scribble(NanoVG& g, float x0, float y0, float x1, float y1, float width, uint32_t seed) {
         Rng r(seed);
@@ -1809,7 +1809,7 @@ private:
         }
         g.lineJoin(NanoVG::MITER); g.lineCap(NanoVG::BUTT);
     }
-    static std::string sauceName(int i) { char b[24]; std::snprintf(b, sizeof b, "sauce %02d", i + 1); return b; }
+    static std::string teaserName(int i) { char b[24]; std::snprintf(b, sizeof b, "preset %02d", i + 1); return b; }
 #endif
     // the hero type: blurred, RGB-split
     void splitText(NanoVG& g, int f, float size, float x, float top, const char* s, Color main, float spacing = 99.f) {
@@ -1965,7 +1965,7 @@ private:
         cross(g, 42, 366, 4, T.ink);
         g.save(); g.translate(14, 350); g.rotate(-1.5707963f);
         splitText(g, fWide, 47, 0, 0, "mercy.", T.blue);
-#ifdef MERCY_SAUCE
+#ifdef MERCY_TEASER
         scribble(g, 2, 6, tw(fWide, 47, "mercy."), 44, 7.5f, 11);
 #endif
         g.restore();
@@ -1973,7 +1973,7 @@ private:
         txt(g, fMono, 10.5f, 0, 0, "drum processor", T.grey, 0, .14f);
         g.restore();
         txt(g, fMono, 8.5f, 104, 14, "mercy / drum processor / v1.9", T.ink);
-#ifdef MERCY_SAUCE
+#ifdef MERCY_TEASER
         scribble(g, 105, 15, 103 + measureText(fMono, 8.5f, "mercy", defaultSpacing(fMono)), 26, 3.2f, 12);
 #endif
         const char* co = S.page == 0 ? "x: 001 y: 006" : (S.bakeOpen ? "x: 003 y: 011" : "x: 002 y: 009");
@@ -2004,7 +2004,7 @@ private:
             const float yy = 140 + i * 22;
             txt(g, fMono, 8.5f, 500, yy, specK[i], T.ink);
             txt(g, fMono, 8.5f, 620, yy, specV[i], T.ink2, 2);
-#ifdef MERCY_SAUCE
+#ifdef MERCY_TEASER
             if (i == 0) scribble(g, 620 - measureText(fMono, 8.5f, specV[0], defaultSpacing(fMono)), yy + 1, 620, yy + 12, 3.2f, 13);
 #endif
             ln(g, 500, yy + 15, 620, yy + 15, T.hair2);
@@ -2243,7 +2243,7 @@ private:
             static const char* nums[4] = {"01", "02", "03", "\xE2\x86\x97"};
             txt(g, fMono, 7.5f, x, 41, nums[c.id], T.ink);
             txt(g, f550, 21, x, 54, c.label.c_str(), (selEra || selPage) ? T.ink : (hov ? T.ink2 : T.grey));
-#ifdef MERCY_SAUCE
+#ifdef MERCY_TEASER
             if (isEra) scribble(g, x, 58, x + tw(f550, 21, c.label.c_str()), 78, 5.5f, 20 + (uint32_t)c.id);
 #endif
             static const float uw[4] = {72, 62, 66, 92};

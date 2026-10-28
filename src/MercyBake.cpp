@@ -30,10 +30,10 @@
 extern char** environ;
 #endif
 
-#ifdef MERCY_SAUCE
-#define MERCY_BAKE_FOLDER "Sauce Bakes"
-#define MERCY_BAKE_FOLDER_W L"Sauce Bakes"
-#define MERCY_BAKE_TAG "_sauce_"
+#ifdef MERCY_TEASER
+#define MERCY_BAKE_FOLDER "000 Bakes"
+#define MERCY_BAKE_FOLDER_W L"000 Bakes"
+#define MERCY_BAKE_TAG "_000_"
 #else
 #define MERCY_BAKE_FOLDER "Mercy Bakes"
 #define MERCY_BAKE_FOLDER_W L"Mercy Bakes"

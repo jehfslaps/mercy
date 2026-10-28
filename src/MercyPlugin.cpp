@@ -17,8 +17,8 @@ public:
     }
 
 protected:
-#ifdef MERCY_SAUCE
-    const char* getLabel() const override { return "Sauce"; }
+#ifdef MERCY_TEASER
+    const char* getLabel() const override { return "000"; }
     const char* getDescription() const override { return "Drum processor."; }
     const char* getHomePage() const override { return "https://slapworx.com"; }
 #else
@@ -60,7 +60,7 @@ protected:
             p.enumValues.values = v;
         };
         switch (index) {
-#ifdef MERCY_SAUCE
+#ifdef MERCY_TEASER
         case pEra: setEnum({"01", "02", "03"}); break; // what a host shows in automation
 #else
         case pEra: setEnum({"Fantasy", "Throne", "Yeezus"}); break;

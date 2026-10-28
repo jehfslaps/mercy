@@ -1,7 +1,7 @@
 #!/usr/bin/make -f
-# "make SAUCE=true" builds Sauce, the teaser version (MERCY with the names scribbled out), as a CLAP
-ifeq ($(SAUCE),true)
-NAME = Sauce
+# "make TEASER=true" builds "000", the teaser version (MERCY with the names scribbled out), as a CLAP
+ifeq ($(TEASER),true)
+NAME = 000
 else
 NAME = Mercy
 endif
@@ -12,6 +12,10 @@ FILES_UI += MercyMac.mm
 endif
 DPF_TARGET_DIR ?= ../bin/linux
 DPF_BUILD_DIR ?= ../build/linux
+ifeq ($(TEASER),true)
+# its own object folder: otherwise it would reuse MERCY's compiled (un-scribbled) files
+override DPF_BUILD_DIR := $(DPF_BUILD_DIR)-teaser
+endif
 # MERCY's fixes on top of DPF (patches/dpf) and its pugl (patches/pugl), applied once before building
 DPF_PATCHED := $(shell cd ../dpf && for p in ../patches/dpf/*.patch; do git apply --reverse --check "$$p" 2>/dev/null || git apply "$$p"; done)
 PUGL_PATCHED := $(shell cd ../dpf/dgl/src/pugl-upstream && for p in ../../../../patches/pugl/*.patch; do git apply --reverse --check "$$p" 2>/dev/null || git apply "$$p"; done)
@@ -31,8 +35,8 @@ else
 # Linux: only used for the tests and screenshots (clap is kept here for the state tests)
 TARGETS = vst3 clap
 endif
-ifeq ($(SAUCE),true)
-BUILD_CXX_FLAGS += -DMERCY_SAUCE
+ifeq ($(TEASER),true)
+BUILD_CXX_FLAGS += -DMERCY_TEASER
 TARGETS = clap
 endif
 all: $(TARGETS)
