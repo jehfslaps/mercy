@@ -54,24 +54,29 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: 000-Windows
+          retention-days: 7
           path: out/000_Windows_CLAP.zip
       - uses: actions/upload-artifact@v4
         with:
           name: Mercy-Windows
+          retention-days: 7
           path: out/Mercy_v*_Windows.zip
       - uses: actions/upload-artifact@v4
         with:
           name: tools-windows
+          retention-days: 2
           path: |
             bin/win/mercy-render.exe
             bin/win/Mercy.vst3
       - uses: actions/upload-artifact@v4
         with:
           name: tools-linux
+          retention-days: 2
           path: bin/linux/mercy-render
       - uses: actions/upload-artifact@v4
         with:
           name: screens-reference
+          retention-days: 2
           path: out/screens-reference
 
   # ---------------------------------------------------------------------------------------- Windows: real Windows checks
@@ -92,6 +97,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: render-windows
+          retention-days: 2
           path: out/render-windows
       - name: pluginval (VST3)
         shell: bash
@@ -104,6 +110,7 @@ jobs:
         if: always()
         with:
           name: pluginval-windows
+          retention-days: 2
           path: out/pluginval-windows
 
   # ---------------------------------------------------------------------------------------- Mac (Apple Silicon)
@@ -141,15 +148,18 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: Mercy-Mac
+          retention-days: 7
           path: out/Mercy_v*_Mac.zip
       - uses: actions/upload-artifact@v4
         with:
           name: render-mac
+          retention-days: 2
           path: out/render-mac
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: screens-mac
+          retention-days: 2
           path: out/screens-mac
       - name: Install into the user plug-in folders
         run: |
@@ -180,6 +190,7 @@ jobs:
         if: always()
         with:
           name: pluginval-mac
+          retention-days: 2
           path: |
             out/pluginval-mac
             auval.txt
@@ -214,6 +225,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: screens-compare
+          retention-days: 2
           path: out/screens-compare
       - name: Fail if the Mac interface looks different
         run: test -z "$LOOK_FAILED"
