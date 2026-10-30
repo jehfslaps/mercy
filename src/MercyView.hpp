@@ -541,10 +541,11 @@ public:
     void filesDropped(const std::vector<std::string>& paths) {
         if (!S.bakeOpen) return;
         ensureBaker();
-        std::vector<std::string> audio;
-        for (const auto& p : paths) if (isAudioFileName(p)) audio.push_back(p);
-        bakeNote = audio.empty() ? "that's not an audio file (wav, aiff, flac, mp3)" : "";
+        bool hadFolder = false;
+        std::vector<std::string> audio = expandAudioPaths(paths, &hadFolder); // folders: every loop inside
+        bakeNote = audio.empty() ? (hadFolder ? "no audio files in that folder" : "that's not an audio file (wav, aiff, flac, mp3)") : "";
         if (!audio.empty()) {
+            if (hadFolder && audio.size() > 1) S.bulkMode = true; // a folder of loops is a bulk job
             if (!S.bulkMode) audio.resize(1);
             S.baker->addFiles(audio, !S.bulkMode);
         }
@@ -1002,7 +1003,22 @@ private:
     static constexpr float kDX = 128, kDY = 172, kDW = 380, kDH = 172; // drop zone
     static constexpr float kLX = 540, kLW = 380;                       // file list
     static constexpr int kBakeRows = 3;
-    enum { zNone = -1, zClose = 1, zSingle, zBulk, zBrowse, zBakeBtn, zOpenFolder, zClear, zDragAll, zDrop, zRow0 = 100 };
+    enum { zNone = -1, zClose = 1, zSingle, zBulk, zBrowse, zBakeBtn, zOpenFolder, zClear, zDragAll, zDrop, zExport, zRow0 = 100 };
+    std::string exportNote; // after "export to desktop": where the files went
+    int numDone() const { int n = 0; for (const auto& it : bakeItems) n += it.state == Baker::kDone; return n; }
+    static constexpr float kEX = 540, kEY = 428, kEW = 222, kEH = 36; // "export to desktop" button
+    void exportBakes() {
+        const std::vector<std::string> files = donePaths();
+        if (files.empty()) return;
+        std::string dir, err; int copied = 0;
+        const std::string folder = exportFolderName(kAppFolder, presetName(S.presetIdx) + (S.presetModified ? " edit" : ""));
+        if (exportToDesktop(files, folder, dir, copied, err)) {
+            const size_t k = dir.find_last_of("/\\");
+            exportNote = std::to_string(copied) + (copied == 1 ? " loop" : " loops") + " \xE2\x86\x92 desktop / " + (k == std::string::npos ? dir : dir.substr(k + 1));
+            if (!err.empty()) exportNote += " (" + err + ")";
+            openFolderInShell(dir);
+        } else exportNote = err;
+    }
 
     void ensureBaker() { if (!S.baker) S.baker.reset(new Baker()); }
     void toggleBake() {
@@ -1030,6 +1046,7 @@ private:
         }
         if (x >= kDX && x <= kDX + kDW + 20 && y >= 360 && y <= 412) return zBakeBtn;
         if (x >= kDX - 4 && x <= kDX + 150 && y >= 474 && y <= 508) return zOpenFolder;
+        if (S.bulkMode && numDone() >= 1 && x >= kEX && x <= kEX + kEW && y >= kEY && y <= kEY + kEH) return zExport;
         if (y >= 164 && y <= 192) {
             if (x >= kLX + kLW - 40 && x <= kLX + kLW + 4) return zClear;
             if (S.bulkMode && x >= 764 && x < 850) return zDragAll;
@@ -1061,10 +1078,11 @@ private:
         case zSingle: S.bulkMode = false; break;
         case zBulk: S.bulkMode = true; break;
         case zBrowse: case zDrop: host->hostBrowseFile(); break;
-        case zBakeBtn: if (!bakeItems.empty()) { S.baker->bakeAll(bakeSettings()); bakeWasBusy = true; } break;
+        case zBakeBtn: if (!bakeItems.empty()) { S.baker->bakeAll(bakeSettings()); bakeWasBusy = true; exportNote.clear(); } break;
         case zOpenFolder: openFolderInShell(bakeFolder(true)); break;
-        case zClear: S.baker->clear(); S.bakeScroll = 0; break;
+        case zClear: S.baker->clear(); S.bakeScroll = 0; exportNote.clear(); break;
         case zDragAll: bakePress = -2; bakePressX = x; bakePressY = y; break;
+        case zExport: exportBakes(); break;
         default:
             if (z >= zRow0) { bakePress = z - zRow0; bakePressX = x; bakePressY = y; }
             break;
@@ -1154,7 +1172,7 @@ private:
             const Color bc = bakeHover == zBrowse ? T.red : T.ink2;
             txt(g, fMed, 13.5f, DX + DW / 2, DY + 104, "or browse", bc, 1);
             rc(g, DX + DW / 2 - wb / 2, DY + 104 + 13.5f * .92f + 4, wb, 1, bc);
-            const char* fm = bakeNote.empty() ? "wav \xC2\xB7 aiff \xC2\xB7 flac \xC2\xB7 mp3" : bakeNote.c_str();
+            const char* fm = bakeNote.empty() ? "wav \xC2\xB7 aiff \xC2\xB7 flac \xC2\xB7 mp3 \xC2\xB7 folders" : bakeNote.c_str();
             const float wf = tw(fMono, 9, fm);
             rc(g, DX + DW / 2 - wf / 2 - 6, DY + DH - 24, wf + 12, 13, T.paper);
             txt(g, fMono, 9, DX + DW / 2, DY + DH - 22, fm, bakeNote.empty() ? T.ink : T.red, 1);
@@ -1265,6 +1283,17 @@ private:
         std::snprintf(b, sizeof b, "fig. 04 \xE2\x80\x94 %d file%s \xC2\xB7 %d baked \xC2\xB7 %d in progress", (int)bakeItems.size(),
                       bakeItems.size() == 1 ? "" : "s", done, baking);
         txt(g, fMono, 8.5f, LX, 404, b, T.ink);
+        // ---- bulk: export the whole batch to its own folder on the desktop
+        if (S.bulkMode && done >= 1) {
+            const bool hov = bakeHover == zExport;
+            if (hov) rc(g, kEX, kEY, kEW, kEH, T.ink);
+            ro(g, kEX, kEY, kEW, kEH, T.ink, 1.5f);
+            const Color c = hov ? T.paper : T.ink;
+            txt(g, fMed, 14, kEX + 14, kEY + 10, "export to desktop", c);
+            arrowNE(g, kEX + 14 + tw(fMed, 14, "export to desktop") + 8, kEY + 13, 8, c);
+            if (!exportNote.empty()) txt(g, fMono, 9, kEX, kEY + kEH + 14, fitText(fMono, 9, exportNote, 300).c_str(), T.ink);
+            else txt(g, fMono, 9, kEX, kEY + kEH + 14, "a new folder with every baked loop", T.grey);
+        }
         rc(g, 856, 452, 26, 26, acc1());
         cells(g, 890, 470, kCluster, 9, 5, T.red);
     }

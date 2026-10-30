@@ -1,5 +1,5 @@
 MERCY  -  drum processor
-version 1.9  -  Windows 64-bit (VST3)  -  Mac, Apple Silicon (VST3 + AU)
+version 1.9  -  Windows 64-bit (VST3 + CLAP)  -  Mac, Apple Silicon (VST3 + AU + CLAP)
 
 
 WHAT'S NEW IN 1.9
@@ -10,8 +10,12 @@ WHAT'S NEW IN 1.9
 - Same sound on every computer: Windows and Mac now render bit-identical
   audio (every build is checked). Compared with 1.8.1 the difference is
   far below anything you can hear (around -110 dB).
-- CLAP is no longer included. Use the VST3 (FL Studio, Ableton, Cubase,
-  Studio One, Reaper, Bitwig...) or the AU on Mac.
+- BAKE A WHOLE FOLDER. Drop a folder of loops onto the bake panel and MERCY
+  bakes every loop inside (subfolders too). It switches to bulk by itself.
+- EXPORT TO DESKTOP. In bulk, "export to desktop" puts every baked loop in
+  a new folder on your desktop (e.g. "Mercy – gold throne – Oct 30") and
+  opens it. So there are three ways out: drag one loop into your DAW, drag
+  them all, or export the whole batch to its own folder.
 - Shows up under "slapworx" in your plugin list, and the slapworx logo sits
   in the bottom-right corner of the window.
 
@@ -209,11 +213,10 @@ INSTALL - WINDOWS
 -----------------
 0. Before unzipping: right-click the zip > Properties > tick "Unblock" > OK.
 1. Close FL Studio.
-2. Copy the "Mercy.vst3" folder from VST3\ into
+2. VST3: copy the "Mercy.vst3" folder from VST3\ into
        C:\Program Files\Common Files\VST3\   (replace the old one)
-3. If you installed the 1.8 CLAP before, you can delete
-       C:\Program Files\Common Files\CLAP\Mercy.clap
-   (old projects that used the CLAP: swap in the VST3).
+3. CLAP (optional, FL Studio 2024+): copy "Mercy.clap" from CLAP\ into
+       C:\Program Files\Common Files\CLAP\
 4. Open FL Studio: Options > Manage plugins > Find installed plugins.
 
 
@@ -222,7 +225,8 @@ INSTALL - MAC (Apple Silicon: M1 or newer)
 1. Quit your DAW.
 2. In Finder press Shift+Cmd+G and go to  ~/Library/Audio/Plug-Ins
 3. Copy "Mercy.component" into the Components folder (AU: Logic,
-   GarageBand) and "Mercy.vst3" into the VST3 folder (other DAWs).
+   GarageBand), "Mercy.vst3" into the VST3 folder and, if your DAW uses
+   CLAP, "Mercy.clap" into the CLAP folder (make it if it isn't there).
 4. Open your DAW. Logic / GarageBand: MERCY is under
    Audio Units > slapworx > Mercy. Logic checks new plugins the first
    time it starts; if MERCY doesn't appear, open Logic > Settings >

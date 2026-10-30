@@ -23,7 +23,9 @@
 #else
 #include <sys/stat.h>
 #include <unistd.h>
+#include <dirent.h>
 #endif
+#include <ctime>
 #ifdef __APPLE__
 #include <pwd.h>
 #include <spawn.h>
@@ -148,6 +150,150 @@ void openFolderInShell(const std::string& path) {
     const std::string cmd = "xdg-open \"" + path + "\" >/dev/null 2>&1 &";
     if (std::system(cmd.c_str()) != 0) {}
 #endif
+}
+
+// ------------------------------------------------------------------------------------------------ folders
+bool isDirectory(const std::string& path) {
+#ifdef _WIN32
+    const DWORD a = GetFileAttributesW(widen(path).c_str());
+    return a != INVALID_FILE_ATTRIBUTES && (a & FILE_ATTRIBUTE_DIRECTORY);
+#else
+    struct stat st; return stat(path.c_str(), &st) == 0 && S_ISDIR(st.st_mode);
+#endif
+}
+
+static bool lessNoCase(const std::string& a, const std::string& b) {
+    const size_t n = std::min(a.size(), b.size());
+    for (size_t i = 0; i < n; ++i) {
+        const int x = std::tolower((unsigned char)a[i]), y = std::tolower((unsigned char)b[i]);
+        if (x != y) return x < y;
+    }
+    return a.size() < b.size();
+}
+
+// every audio file in a folder (and its subfolders, a few levels deep), sorted by name
+static void scanFolder(const std::string& dir, int depth, std::vector<std::string>& out, size_t maxFiles) {
+    std::vector<std::string> files, dirs;
+#ifdef _WIN32
+    WIN32_FIND_DATAW fd;
+    HANDLE h = FindFirstFileW(widen(dir + "\\*").c_str(), &fd);
+    if (h == INVALID_HANDLE_VALUE) return;
+    do {
+        const std::string name = narrow(fd.cFileName);
+        if (name.empty() || name[0] == '.') continue;
+        const std::string full = dir + "\\" + name;
+        if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) dirs.push_back(full);
+        else if (isAudioFileName(name)) files.push_back(full);
+    } while (FindNextFileW(h, &fd));
+    FindClose(h);
+#else
+    DIR* d = opendir(dir.c_str());
+    if (d == nullptr) return;
+    while (const dirent* e = readdir(d)) {
+        const std::string name = e->d_name;
+        if (name.empty() || name[0] == '.') continue; // also skips macOS "._" files
+        const std::string full = dir + "/" + name;
+        if (isDirectory(full)) dirs.push_back(full);
+        else if (isAudioFileName(name)) files.push_back(full);
+    }
+    closedir(d);
+#endif
+    std::sort(files.begin(), files.end(), lessNoCase);
+    std::sort(dirs.begin(), dirs.end(), lessNoCase);
+    for (const auto& f : files) { if (out.size() >= maxFiles) return; out.push_back(f); }
+    if (depth > 0) for (const auto& sd : dirs) { if (out.size() >= maxFiles) return; scanFolder(sd, depth - 1, out, maxFiles); }
+}
+
+std::vector<std::string> expandAudioPaths(const std::vector<std::string>& paths, bool* hadFolder) {
+    const size_t kMax = 500;
+    std::vector<std::string> out;
+    if (hadFolder) *hadFolder = false;
+    for (const auto& p : paths) {
+        if (out.size() >= kMax) break;
+        if (isDirectory(p)) { if (hadFolder) *hadFolder = true; scanFolder(p, 3, out, kMax); }
+        else if (isAudioFileName(p)) out.push_back(p);
+    }
+    return out;
+}
+
+// ------------------------------------------------------------------------------------------------ export to desktop
+std::string desktopFolder() {
+#ifdef _WIN32
+    wchar_t buf[MAX_PATH] = {};
+    if (SUCCEEDED(SHGetFolderPathW(nullptr, CSIDL_DESKTOPDIRECTORY, nullptr, 0, buf))) return narrow(buf);
+    const DWORD n = GetEnvironmentVariableW(L"USERPROFILE", buf, MAX_PATH);
+    return (n > 0 && n < MAX_PATH) ? narrow(buf) + "\\Desktop" : std::string();
+#elif defined(__APPLE__)
+    const std::string d = macHomeFolder() + "/Desktop";
+    if (access(d.c_str(), W_OK) == 0) return d;
+    const char* home = std::getenv("HOME"); // sandboxed host: its own Desktop
+    return home ? std::string(home) + "/Desktop" : d;
+#else
+    const char* home = std::getenv("HOME");
+    const std::string d = std::string(home ? home : "/tmp") + "/Desktop";
+    mkdir(d.c_str(), 0755);
+    return d;
+#endif
+}
+
+static bool makeDir(const std::string& path) {
+#ifdef _WIN32
+    return CreateDirectoryW(widen(path).c_str(), nullptr) != 0;
+#else
+    return mkdir(path.c_str(), 0755) == 0;
+#endif
+}
+
+static bool copyFile(const std::string& from, const std::string& to) {
+#ifdef _WIN32
+    return CopyFileW(widen(from).c_str(), widen(to).c_str(), TRUE) != 0;
+#else
+    FILE* a = std::fopen(from.c_str(), "rb");
+    if (!a) return false;
+    FILE* b = std::fopen(to.c_str(), "wb");
+    if (!b) { std::fclose(a); return false; }
+    std::vector<char> buf(1 << 16);
+    bool ok = true;
+    size_t n;
+    while ((n = std::fread(buf.data(), 1, buf.size(), a)) > 0) if (std::fwrite(buf.data(), 1, n, b) != n) { ok = false; break; }
+    std::fclose(a);
+    if (std::fclose(b) != 0) ok = false;
+    return ok;
+#endif
+}
+
+std::string exportFolderName(const std::string& app, const std::string& preset) {
+    static const char* months[12] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
+    const std::time_t t = std::time(nullptr);
+    const std::tm* lt = std::localtime(&t);
+    std::string p;
+    for (char c : preset) p += std::strchr("\\/:*?\"<>|", c) ? '-' : c; // not allowed in folder names
+    while (!p.empty() && (p.back() == ' ' || p.back() == '.')) p.pop_back();
+    char date[16] = "";
+    if (lt) std::snprintf(date, sizeof date, "%s %d", months[lt->tm_mon], lt->tm_mday);
+    return app + " \xE2\x80\x93 " + (p.empty() ? std::string("bakes") : p) + (date[0] ? std::string(" \xE2\x80\x93 ") + date : std::string());
+}
+
+bool exportToDesktop(const std::vector<std::string>& files, const std::string& folderName, std::string& outDir, int& copied, std::string& err) {
+    copied = 0;
+    const std::string desk = desktopFolder();
+    if (desk.empty()) { err = "can't find your desktop"; return false; }
+#ifdef _WIN32
+    const std::string sep = "\\";
+#else
+    const std::string sep = "/";
+#endif
+    std::string dir = desk + sep + folderName;
+    for (int k = 2; isDirectory(dir) || fileExists(dir); ++k) {
+        if (k > 999) { err = "can't make the folder"; return false; }
+        dir = desk + sep + folderName + " (" + std::to_string(k) + ")";
+    }
+    if (!makeDir(dir)) { err = "can't make a folder on your desktop"; return false; }
+    for (const auto& f : files)
+        if (copyFile(f, dir + sep + fileName(f))) ++copied;
+    outDir = dir;
+    if (copied < (int)files.size()) err = "some files couldn't be copied";
+    return copied > 0;
 }
 
 static void toStereo(const float* inter, size_t frames, unsigned channels, std::vector<float>& L, std::vector<float>& R) {

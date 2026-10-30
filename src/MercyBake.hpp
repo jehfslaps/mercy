@@ -26,6 +26,13 @@ std::string fileName(const std::string& path);       // -> "amen.wav"
 bool fileExists(const std::string& path);
 bool isAudioFileName(const std::string& path);
 void openFolderInShell(const std::string& path);
+bool isDirectory(const std::string& path);
+// audio files from a drop: files as they are, folders opened up (subfolders too), max 500
+std::vector<std::string> expandAudioPaths(const std::vector<std::string>& paths, bool* hadFolder = nullptr);
+// "export to desktop": a new folder on the desktop with copies of the baked files
+std::string desktopFolder();
+std::string exportFolderName(const std::string& app, const std::string& preset); // "Mercy – gold throne – Oct 30"
+bool exportToDesktop(const std::vector<std::string>& files, const std::string& folderName, std::string& outDir, int& copied, std::string& err);
 #ifdef __APPLE__
 std::string macHomeFolder(); // the real home folder, even inside a sandboxed host
 #endif

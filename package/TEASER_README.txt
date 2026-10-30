@@ -1,5 +1,5 @@
 000  -  teaser build (private)
-Windows 64-bit  -  CLAP
+Windows 64-bit  -  VST3 + CLAP
 
 This is MERCY with the names scribbled out, for screen recordings. It sounds
 exactly like MERCY and works the same; only the names are hidden.
@@ -9,8 +9,9 @@ INSTALL
 2. Close FL Studio.
 3. If you installed the earlier "Sauce" test, delete
        C:\Program Files\Common Files\CLAP\Sauce.clap
-4. Copy "000.clap" into  C:\Program Files\Common Files\CLAP\
-5. Open FL Studio (2024 or newer): Options > Manage plugins > Find installed plugins.
+4. VST3: copy the "000.vst3" folder into  C:\Program Files\Common Files\VST3\
+   CLAP (FL Studio 2024+): copy "000.clap" into  C:\Program Files\Common Files\CLAP\
+5. Open FL Studio: Options > Manage plugins > Find installed plugins.
    It shows up as "000" by slapworx. It installs next to MERCY, it doesn't replace it.
 
 WHAT'S DIFFERENT FROM MERCY
@@ -19,3 +20,4 @@ WHAT'S DIFFERENT FROM MERCY
 - Its own user presets (%APPDATA%\000), so your MERCY preset names never show up.
 - Bakes go to Documents\000 Bakes and are named like loop_000_preset-01.wav.
 - In automation the era shows as 01 / 02 / 03.
+- "export to desktop" makes folders named like "000 – preset 01 – Oct 30".

@@ -1,22 +1,25 @@
 #!/bin/bash
 # Build the release zip.
-#   tools/package.sh windows <bindir> <version>   -> Mercy_v<version>_Windows.zip  (VST3)
-#   tools/package.sh mac     <bindir> <version>   -> Mercy_v<version>_Mac.zip      (VST3 + AU, Apple Silicon)
+#   tools/package.sh windows <bindir> <version>   -> Mercy_v<version>_Windows.zip  (VST3 + CLAP)
+#   tools/package.sh mac     <bindir> <version>   -> Mercy_v<version>_Mac.zip      (VST3 + AU + CLAP, Apple Silicon)
+#   tools/package.sh teaser  <bindir> <version>   -> 000_Windows.zip              (VST3 + CLAP)
 set -e
 PLATFORM=$1; BIN=$(cd "$2" && pwd); VER=$3
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 STAGE=$(mktemp -d)
 M="$STAGE/Mercy"
-mkdir -p "$M/VST3" "$M/licenses" "$M/source"
+mkdir -p "$M/VST3" "$M/CLAP" "$M/licenses" "$M/source"
 cp -R "$BIN/Mercy.vst3" "$M/VST3/"
+[ "$PLATFORM" = "teaser" ] || cp "$BIN/Mercy.clap" "$M/CLAP/"
 if [ "$PLATFORM" = "teaser" ]; then
   # the "000" teaser build: just the CLAP, its readme and the licenses
-  rm -rf "$M"; M="$STAGE/000"; mkdir -p "$M/CLAP" "$M/licenses"
+  rm -rf "$M"; M="$STAGE/000"; mkdir -p "$M/VST3" "$M/CLAP" "$M/licenses"
+  cp -R "$BIN/000.vst3" "$M/VST3/"
   cp "$BIN/000.clap" "$M/CLAP/"
   cp "$ROOT/package/TEASER_README.txt" "$M/README.txt"
   cp "$ROOT"/package/licenses/* "$M/licenses/"
   cp "$ROOT/dpf/LICENSE" "$M/licenses/DPF-ISC.txt"
-  NAME="000_Windows_CLAP.zip"
+  NAME="000_Windows.zip"
   mkdir -p "$ROOT/out"; rm -f "$ROOT/out/$NAME"
   (cd "$STAGE" && zip -q -r -y "$ROOT/out/$NAME" 000)
   rm -rf "$STAGE"; echo "$ROOT/out/$NAME"; exit 0

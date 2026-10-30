@@ -64,6 +64,14 @@ int main(int argc,char** argv){
       click(318,386,5000);
       for(int i=0;i<300;i++){ win.view.idle(); usleep(20000); }
       win.view.motion(700,(204+20),0); } break;
+  case 19: { // folder drop -> bulk -> bake all -> export to desktop (needs SHOT_KIT = a folder of loops; HOME decides the desktop)
+      click(482,66,1000); click(780,560,2000);
+      const char* kit = getenv("SHOT_KIT");
+      if (kit) win.view.filesDropped({std::string(kit)});
+      click(318,386,5000);
+      for(int i=0;i<300;i++){ win.view.idle(); usleep(20000); }
+      click(560,446,7000);
+      win.view.motion(600,446,0); } break;
   case 10: click(482,66,1000); click(780,560,2000); win.view.setDropHover(true); break;
   case 13: click(260,557,1000); for (const char* c="dark fantasy kick"; *c; ++c) win.view.character((unsigned)*c); break; // save -> type a name
   case 14: click(150,557,1000); for(int i=0;i<10;i++) win.view.scroll(300,300,-1,0); win.view.motion(200,462,0); break;       // browser, hover a user preset

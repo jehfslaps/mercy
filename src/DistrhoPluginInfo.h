@@ -3,7 +3,7 @@
 
 #define DISTRHO_PLUGIN_BRAND   "slapworx"
 #ifdef MERCY_TEASER
-// "000": the teaser build (CLAP, Windows). Its own name and IDs, so it installs next to MERCY.
+// "000": the teaser build (Windows VST3 + CLAP). Its own name and IDs, so it installs next to MERCY.
 #define DISTRHO_PLUGIN_NAME    "000"
 #define DISTRHO_PLUGIN_URI     "https://slapworx.com/plugins/000"
 #define DISTRHO_PLUGIN_CLAP_ID "com.slapworx.ooo"
@@ -12,7 +12,7 @@
 #else
 #define DISTRHO_PLUGIN_NAME    "Mercy"
 #define DISTRHO_PLUGIN_URI     "https://mercy.audio/plugins/mercy"
-#define DISTRHO_PLUGIN_CLAP_ID "audio.mercy.drumprocessor" // MERCY's CLAP is only built on Linux, for the tests
+#define DISTRHO_PLUGIN_CLAP_ID "audio.mercy.drumprocessor" // same as 1.8, so old projects find it
 #define DISTRHO_PLUGIN_BRAND_ID  Mrcy
 #define DISTRHO_PLUGIN_UNIQUE_ID MrDp
 #endif

@@ -37,7 +37,7 @@ jobs:
           cp ../dpf/build/libdgl-opengl.a ../test/libdgl-linux.a
       - name: Reference screenshots
         run: tools/screenshots.sh linux out/screens-reference
-      - name: Windows build (VST3)
+      - name: Windows build (VST3 + CLAP)
         run: |
           make -C dpf clean
           cd src
@@ -45,7 +45,7 @@ jobs:
           make render $WIN
       - name: Windows binary imports only system DLLs
         run: x86_64-w64-mingw32-objdump -p bin/win/Mercy.vst3/Contents/x86_64-win/Mercy.vst3 | grep "DLL Name"
-      - name: 000 (teaser build, Windows CLAP)
+      - name: 000 (teaser build, Windows VST3 + CLAP)
         run: make -C src -j4 $WIN TEASER=true
       - name: Package Windows zips
         run: |
@@ -55,7 +55,7 @@ jobs:
         with:
           name: 000-Windows
           retention-days: 7
-          path: out/000_Windows_CLAP.zip
+          path: out/000_Windows.zip
       - uses: actions/upload-artifact@v4
         with:
           name: Mercy-Windows
@@ -122,7 +122,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-      - name: Build VST3 + AU (arm64)
+      - name: Build VST3 + AU + CLAP (arm64)
         run: |
           MAC="BUILD_DIR_SUFFIX=-mac DPF_BUILD_DIR=../build/mac DPF_TARGET_DIR=../bin/mac SKIP_STRIPPING=true"
           tools/ci_run.sh "Mac build" make -C src -j4 $MAC
@@ -136,6 +136,7 @@ jobs:
         run: |
           codesign --force --deep --sign - bin/mac/Mercy.vst3
           codesign --force --deep --sign - bin/mac/Mercy.component
+          codesign --force --deep --sign - bin/mac/Mercy.clap
       - name: Sound check render (Mac)
         run: |
           mkdir -p out/render-mac

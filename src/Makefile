@@ -25,19 +25,19 @@ include ../dpf/Makefile.plugins.mk
 BUILD_CXX_FLAGS += -I. -O3 -fno-fast-math -ffp-contract=off
 ifeq ($(WINDOWS),true)
 LINK_FLAGS += -lole32 -luuid -lshell32
-TARGETS = vst3
+TARGETS = vst3 clap
 else ifeq ($(MACOS),true)
 # Apple Silicon only
 BUILD_CXX_FLAGS += -arch arm64 -mmacosx-version-min=11.0
 LINK_FLAGS += -arch arm64 -mmacosx-version-min=11.0
-TARGETS = vst3 au
+TARGETS = vst3 au clap
 else
-# Linux: only used for the tests and screenshots (clap is kept here for the state tests)
+# Linux: only used for the tests and screenshots
 TARGETS = vst3 clap
 endif
 ifeq ($(TEASER),true)
 BUILD_CXX_FLAGS += -DMERCY_TEASER
-TARGETS = clap
+TARGETS = vst3 clap
 endif
 all: $(TARGETS)
 
