@@ -1006,7 +1006,10 @@ private:
     enum { zNone = -1, zClose = 1, zSingle, zBulk, zBrowse, zBakeBtn, zOpenFolder, zClear, zDragAll, zDrop, zExport, zRow0 = 100 };
     std::string exportNote; // after "export to desktop": where the files went
     int numDone() const { int n = 0; for (const auto& it : bakeItems) n += it.state == Baker::kDone; return n; }
-    static constexpr float kEX = 540, kEY = 428, kEW = 222, kEH = 36; // "export to desktop" button
+    // "export to desktop": a small link at the bottom right of the file list (same style as "drag all")
+    static constexpr float kEY = 426, kEH = 16;
+    float exportLinkW() const { return tw(fMed, 12.5f, "export to desktop") + 16.f; }
+    float exportLinkX() const { return kLX; }
     void exportBakes() {
         const std::vector<std::string> files = donePaths();
         if (files.empty()) return;
@@ -1046,7 +1049,7 @@ private:
         }
         if (x >= kDX && x <= kDX + kDW + 20 && y >= 360 && y <= 412) return zBakeBtn;
         if (x >= kDX - 4 && x <= kDX + 150 && y >= 474 && y <= 508) return zOpenFolder;
-        if (S.bulkMode && numDone() >= 1 && x >= kEX && x <= kEX + kEW && y >= kEY && y <= kEY + kEH) return zExport;
+        if (S.bulkMode && numDone() >= 1 && x >= exportLinkX() - 4 && x <= exportLinkX() + exportLinkW() + 4 && y >= kEY - 4 && y <= kEY + kEH + 4) return zExport;
         if (y >= 164 && y <= 192) {
             if (x >= kLX + kLW - 40 && x <= kLX + kLW + 4) return zClear;
             if (S.bulkMode && x >= 764 && x < 850) return zDragAll;
@@ -1283,16 +1286,13 @@ private:
         std::snprintf(b, sizeof b, "fig. 04 \xE2\x80\x94 %d file%s \xC2\xB7 %d baked \xC2\xB7 %d in progress", (int)bakeItems.size(),
                       bakeItems.size() == 1 ? "" : "s", done, baking);
         txt(g, fMono, 8.5f, LX, 404, b, T.ink);
-        // ---- bulk: export the whole batch to its own folder on the desktop
+        // ---- bulk: export the whole batch to its own folder on the desktop (small link, like "drag all")
         if (S.bulkMode && done >= 1) {
-            const bool hov = bakeHover == zExport;
-            if (hov) rc(g, kEX, kEY, kEW, kEH, T.ink);
-            ro(g, kEX, kEY, kEW, kEH, T.ink, 1.5f);
-            const Color c = hov ? T.paper : T.ink;
-            txt(g, fMed, 14, kEX + 14, kEY + 10, "export to desktop", c);
-            arrowNE(g, kEX + 14 + tw(fMed, 14, "export to desktop") + 8, kEY + 13, 8, c);
-            if (!exportNote.empty()) txt(g, fMono, 9, kEX, kEY + kEH + 14, fitText(fMono, 9, exportNote, 300).c_str(), T.ink);
-            else txt(g, fMono, 9, kEX, kEY + kEH + 14, "a new folder with every baked loop", T.grey);
+            const Color c = bakeHover == zExport ? T.ink : T.red;
+            const float ex = exportLinkX();
+            txt(g, fMed, 12.5f, ex, kEY, "export to desktop", c);
+            arrowNE(g, ex + tw(fMed, 12.5f, "export to desktop") + 6, kEY + 3, 7, c);
+            if (!exportNote.empty()) txt(g, fMono, 8.5f, kLX, kEY + 22, fitText(fMono, 8.5f, exportNote, 300).c_str(), T.ink2);
         }
         rc(g, 856, 452, 26, 26, acc1());
         cells(g, 890, 470, kCluster, 9, 5, T.red);

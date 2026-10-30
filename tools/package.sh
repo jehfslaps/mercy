@@ -10,12 +10,12 @@ STAGE=$(mktemp -d)
 M="$STAGE/Mercy"
 mkdir -p "$M/VST3" "$M/CLAP" "$M/licenses" "$M/source"
 cp -R "$BIN/Mercy.vst3" "$M/VST3/"
-[ "$PLATFORM" = "teaser" ] || cp "$BIN/Mercy.clap" "$M/CLAP/"
+[ "$PLATFORM" = "teaser" ] || cp -R "$BIN/Mercy.clap" "$M/CLAP/"   # a folder (bundle) on Mac
 if [ "$PLATFORM" = "teaser" ]; then
   # the "000" teaser build: just the CLAP, its readme and the licenses
   rm -rf "$M"; M="$STAGE/000"; mkdir -p "$M/VST3" "$M/CLAP" "$M/licenses"
   cp -R "$BIN/000.vst3" "$M/VST3/"
-  cp "$BIN/000.clap" "$M/CLAP/"
+  cp -R "$BIN/000.clap" "$M/CLAP/"
   cp "$ROOT/package/TEASER_README.txt" "$M/README.txt"
   cp "$ROOT"/package/licenses/* "$M/licenses/"
   cp "$ROOT/dpf/LICENSE" "$M/licenses/DPF-ISC.txt"

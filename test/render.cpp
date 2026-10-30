@@ -127,6 +127,9 @@ static int render(const char* inPath, const std::string& dir) {
     std::vector<float> inL(L), inR(R);
     inL.insert(inL.end(), L.begin(), L.end()); inR.insert(inR.end(), R.begin(), R.end());
     FILE* list = std::fopen((dir + "/list.txt").c_str(), "w");
+    // fingerprints of every render (FNV-1a 64 over the exact float bits): two platforms are
+    // bit-identical exactly when their hashes.txt files match, without moving hundreds of MB around
+    FILE* hashes = std::fopen((dir + "/hashes.txt").c_str(), "w");
     if (!list) { std::fprintf(stderr, "can't write to %s\n", dir.c_str()); return 2; }
     int n = 0;
     for (const Scenario& s : scenarios()) {
@@ -151,9 +154,14 @@ static int render(const char* inPath, const std::string& dir) {
         }
         writeF32(dir + "/" + s.name + ".f32", oL, oR);
         std::fprintf(list, "%s\n", s.name.c_str());
+        uint64_t h = 1469598103934665603ull;
+        for (size_t i = 0; i < oL.size(); ++i)
+            for (const float* v : {&oL[i], &oR[i]}) { uint32_t u; std::memcpy(&u, v, 4); for (int k = 0; k < 4; ++k) { h ^= (u >> (8 * k)) & 0xff; h *= 1099511628211ull; } }
+        if (hashes) std::fprintf(hashes, "%016llx %s\n", (unsigned long long)h, s.name.c_str());
         ++n;
     }
     std::fclose(list);
+    if (hashes) std::fclose(hashes);
     std::printf("rendered %d scenarios to %s\n", n, dir.c_str());
     return 0;
 }

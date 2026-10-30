@@ -98,7 +98,7 @@ jobs:
         with:
           name: render-windows
           retention-days: 2
-          path: out/render-windows
+          path: out/render-windows/hashes.txt
       - name: pluginval (VST3)
         shell: bash
         run: |
@@ -155,7 +155,7 @@ jobs:
         with:
           name: render-mac
           retention-days: 2
-          path: out/render-mac
+          path: out/render-mac/hashes.txt
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -208,13 +208,15 @@ jobs:
           path: art
       - name: Sound - Windows vs Mac (must be bit-identical)
         run: |
-          chmod +x art/tools-linux/mercy-render
-          echo '### Sound: Windows vs Mac' >> $GITHUB_STEP_SUMMARY
-          art/tools-linux/mercy-render --compare art/render-windows art/render-mac | tee sound.txt
-          echo '```' >> $GITHUB_STEP_SUMMARY; tail -1 sound.txt >> $GITHUB_STEP_SUMMARY; echo '```' >> $GITHUB_STEP_SUMMARY
-          echo "::notice title=Sound Windows vs Mac::$(tail -1 sound.txt)"
-          art/tools-linux/mercy-render --compare art/render-windows art/render-mac | grep -v identical | head -20 | awk '{printf "%s%%0A", $0}' | sed 's/^/::notice title=Sound details::/'
-          grep -q ", 0 with tiny differences, 0 failed" sound.txt
+          W=art/render-windows/hashes.txt; M=art/render-mac/hashes.txt
+          total=$(wc -l < $W); same=$(comm -12 <(sort $W) <(sort $M) | wc -l)
+          msg="$total scenarios: $same bit-identical, $((total - same)) different"
+          echo "### Sound: Windows vs Mac" >> $GITHUB_STEP_SUMMARY; echo "$msg" >> $GITHUB_STEP_SUMMARY
+          echo "::notice title=Sound Windows vs Mac::$msg"
+          if [ "$same" != "$total" ] || [ "$total" = "0" ]; then
+            echo "::error title=Different on Mac::$(diff <(sort -k2 $W) <(sort -k2 $M) | grep '^>' | head -20 | awk '{printf "%s%%0A", $3}')"
+            exit 1
+          fi
       - name: Look - reference vs Mac
         run: |
           sudo apt-get install -y -qq python3-pil
