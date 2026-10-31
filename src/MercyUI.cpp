@@ -1,6 +1,11 @@
 #include "DistrhoUI.hpp"
 #include "MercyView.hpp"
 #include "MercyDnD.hpp"
+#include <atomic>
+#include <mutex>
+#ifdef __APPLE__
+#include <pthread.h>
+#endif
 
 START_NAMESPACE_DISTRHO
 
@@ -22,14 +27,53 @@ public:
 
 protected:
     // host -> UI
-    void parameterChanged(uint32_t index, float value) override { fView.paramChanged(index, value); }
+    // The AU wrapper calls these from whatever thread changed the value (the audio thread for the meters,
+    // any thread for automation). The window may only be touched on the main thread (macOS crashes
+    // otherwise, rarely), so off the main thread the change is queued and applied in uiIdle().
+    static bool onMainThread()
+    {
+#ifdef __APPLE__
+        return pthread_main_np() != 0;
+#else
+        return true; // Windows/VST3: DPF already calls these on the UI thread
+#endif
+    }
+    void parameterChanged(uint32_t index, float value) override
+    {
+        if (onMainThread()) { fView.paramChanged(index, value); return; }
+        if (index >= mercy::kNumParams) return;
+        fPending[index].store(value, std::memory_order_relaxed);
+        fPendingSet[index].store(true, std::memory_order_release);
+        fAnyPending.store(true, std::memory_order_release);
+    }
     void stateChanged(const char* key, const char* value) override
+    {
+        if (!onMainThread()) {
+            std::lock_guard<std::mutex> lk(fStateMutex);
+            fPendingState.emplace_back(key ? key : "", value ? value : "");
+            fAnyPending.store(true, std::memory_order_release);
+            return;
+        }
+        applyState(key, value);
+    }
+    void applyState(const char* key, const char* value)
     {
         if (std::strcmp(key, "order") == 0) fView.orderChanged(value);
         else if (std::strcmp(key, "ui") == 0) fView.uiStateChanged(value);
     }
+    void applyPending()
+    {
+        if (!fAnyPending.exchange(false, std::memory_order_acq_rel)) return;
+        for (uint32_t p = 0; p < mercy::kNumParams; ++p)
+            if (fPendingSet[p].exchange(false, std::memory_order_acq_rel))
+                fView.paramChanged(p, fPending[p].load(std::memory_order_relaxed));
+        std::vector<std::pair<std::string, std::string>> st;
+        { std::lock_guard<std::mutex> lk(fStateMutex); st.swap(fPendingState); }
+        for (const auto& kv : st) applyState(kv.first.c_str(), kv.second.c_str());
+    }
     void uiIdle() override
     {
+        applyPending();
         if (fDnD == nullptr && ++fDnDTries < 50) installDnD();
         fView.idle();
     }
@@ -99,6 +143,11 @@ protected:
 
 private:
     mercy::MercyView fView;
+    std::atomic<float> fPending[mercy::kNumParams] {};
+    std::atomic<bool> fPendingSet[mercy::kNumParams] {};
+    std::atomic<bool> fAnyPending {false};
+    std::mutex fStateMutex;
+    std::vector<std::pair<std::string, std::string>> fPendingState;
     void* fDnD = nullptr;
     int fDnDTries = 0;
 
