@@ -129,7 +129,7 @@ static int render(const char* inPath, const std::string& dir) {
     FILE* list = std::fopen((dir + "/list.txt").c_str(), "w");
     // fingerprints of every render (FNV-1a 64 over the exact float bits): two platforms are
     // bit-identical exactly when their hashes.txt files match, without moving hundreds of MB around
-    FILE* hashes = std::fopen((dir + "/hashes.txt").c_str(), "w");
+    FILE* hashes = std::fopen((dir + "/hashes.txt").c_str(), "wb"); // binary: same "\n" on Windows
     if (!list) { std::fprintf(stderr, "can't write to %s\n", dir.c_str()); return 2; }
     int n = 0;
     for (const Scenario& s : scenarios()) {

@@ -184,11 +184,16 @@ jobs:
           PV=pv/pluginval.app/Contents/MacOS/pluginval
           tools/ci_run.sh "pluginval VST3 (Mac)" $PV --strictness-level 5 --validate-in-process --output-dir out/pluginval-mac --validate ~/Library/Audio/Plug-Ins/VST3/Mercy.vst3
           tools/ci_run.sh "pluginval AU no-editor (Mac)" $PV --strictness-level 5 --skip-gui-tests --validate-in-process --output-dir out/pluginval-mac --validate ~/Library/Audio/Plug-Ins/Components/Mercy.component && echo "::notice title=pluginval AU without editor tests::passed" || true
-          # under the debugger: if it crashes, report the backtrace of the crashing thread
-          lldb --batch -o "process handle SIGSEGV -s true -p false" -o run -k "bt 40" -k "register read pc" -k quit -- $PV --strictness-level 5 --validate-in-process --validate ~/Library/Audio/Plug-Ins/Components/Mercy.component > lldb.txt 2>&1 || true
-          if grep -q "stop reason" lldb.txt; then
-            echo "::error title=AU crash backtrace::$(grep -A 45 'stop reason' lldb.txt | head -60 | sed -e 's/%/%25/g' | awk '{printf "%s%%0A", $0}')"
-          fi
+          # under the debugger, up to 5 times (the crash is intermittent): report the first backtrace
+          for n in 1 2 3 4 5; do
+            lldb --batch -o "process handle SIGSEGV SIGBUS SIGABRT -s true -p false" -o run -k "bt 40" -k "thread list" -k quit -- $PV --strictness-level 5 --validate-in-process --validate ~/Library/Audio/Plug-Ins/Components/Mercy.component > lldb.txt 2>&1 || true
+            if grep -q "stop reason" lldb.txt; then
+              echo "::error title=AU crash backtrace (attempt $n)::$(grep -B 3 -A 45 'stop reason' lldb.txt | head -55 | sed -e 's/%/%25/g' | awk '{printf "%s%%0A", $0}')"
+              echo "::error title=AU crash threads::$(sed -n '/thread list/,$p' lldb.txt | head -25 | sed -e 's/%/%25/g' | awk '{printf "%s%%0A", $0}')"
+              break
+            fi
+            echo "::notice title=pluginval AU under debugger::attempt $n passed"
+          done
           tools/ci_run.sh "pluginval AU (Mac)" $PV --strictness-level 5 --validate-in-process --output-dir out/pluginval-mac --validate ~/Library/Audio/Plug-Ins/Components/Mercy.component
 
   # ---------------------------------------------------------------------------------------- same sound, same look
@@ -224,7 +229,8 @@ jobs:
             out/screens-mac
       - name: Sound - Windows vs Mac (must be bit-identical)
         run: |
-          W=hashes/windows.txt; M=hashes/mac.txt
+          tr -d '\r' < hashes/windows.txt > w.txt; tr -d '\r' < hashes/mac.txt > m.txt
+          W=w.txt; M=m.txt
           total=$(wc -l < $W); same=$(comm -12 <(sort $W) <(sort $M) | wc -l)
           msg="$total scenarios: $same bit-identical, $((total - same)) different"
           echo "### Sound: Windows vs Mac" >> $GITHUB_STEP_SUMMARY; echo "$msg" >> $GITHUB_STEP_SUMMARY
