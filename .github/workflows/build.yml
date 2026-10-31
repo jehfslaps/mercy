@@ -1,12 +1,17 @@
 name: build
 
-# Every push builds Windows (VST3) and Mac (VST3 + AU, Apple Silicon), checks the plugins, and proves
-# Windows and Mac sound bit-identical and look the same. The release zips are the "Mercy-Windows" and
-# "Mercy-Mac" artifacts on the run's page.
+# Every push builds Windows (VST3 + CLAP) and Mac (VST3 + AU + CLAP, Apple Silicon), checks the plugins,
+# and proves Windows and Mac sound bit-identical and look the same.
+# Downloads: the "Latest build" release on the repo page (Mercy Windows + Mac zips, 000 teaser zip).
+# Nothing here uses Actions artifact storage (it filled up and stays blocked for the month): files pass
+# between jobs through the Actions cache, and the zips go to the release.
 on:
   push:
   pull_request:
   workflow_dispatch:
+
+permissions:
+  contents: write   # to publish the zips to the "Latest build" release
 
 env:
   VERSION: "1.9"
@@ -51,33 +56,27 @@ jobs:
         run: |
           tools/package.sh windows bin/win $VERSION
           tools/package.sh teaser bin/win $VERSION
-      - uses: actions/upload-artifact@v4
+      - name: Publish to the "Latest build" release
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view latest-build >/dev/null 2>&1 || gh release create latest-build --prerelease --title "Latest build" --notes "Built automatically from every push." || true
+          gh release upload latest-build out/Mercy_v*_Windows.zip out/000_Windows.zip --clobber
+          gh release edit latest-build --notes "Built automatically from commit ${GITHUB_SHA::7} ($(date -u '+%Y-%m-%d %H:%M UTC'))." || true
+      - uses: actions/cache/save@v4
         with:
-          name: 000-Windows
-          retention-days: 7
-          path: out/000_Windows.zip
-      - uses: actions/upload-artifact@v4
-        with:
-          name: Mercy-Windows
-          retention-days: 7
-          path: out/Mercy_v*_Windows.zip
-      - uses: actions/upload-artifact@v4
-        with:
-          name: tools-windows
-          retention-days: 2
+          key: ci-${{ github.run_id }}-${{ github.run_attempt }}-tools-windows
+          enableCrossOsArchive: true
           path: |
             bin/win/mercy-render.exe
             bin/win/Mercy.vst3
-      - uses: actions/upload-artifact@v4
+      - uses: actions/cache/save@v4
         with:
-          name: tools-linux
-          retention-days: 2
-          path: bin/linux/mercy-render
-      - uses: actions/upload-artifact@v4
-        with:
-          name: screens-reference
-          retention-days: 2
-          path: out/screens-reference
+          key: ci-${{ github.run_id }}-${{ github.run_attempt }}-screens-reference
+          enableCrossOsArchive: true
+          path: |
+            out/screens-reference
 
   # ---------------------------------------------------------------------------------------- Windows: real Windows checks
   windows-check:
@@ -85,33 +84,32 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/cache/restore@v4
         with:
-          name: tools-windows
-          path: wbin
+          key: ci-${{ github.run_id }}-${{ github.run_attempt }}-tools-windows
+          enableCrossOsArchive: true
+          path: |
+            bin/win/mercy-render.exe
+            bin/win/Mercy.vst3
       - name: Sound check render (Windows)
         shell: bash
         run: |
           mkdir -p out/render-windows
-          wbin/mercy-render.exe test/dry_loop.wav out/render-windows
-      - uses: actions/upload-artifact@v4
+          bin/win/mercy-render.exe test/dry_loop.wav out/render-windows
+          mkdir -p hashes && cp out/render-windows/hashes.txt hashes/windows.txt
+      - uses: actions/cache/save@v4
         with:
-          name: render-windows
-          retention-days: 2
-          path: out/render-windows/hashes.txt
+          key: ci-${{ github.run_id }}-${{ github.run_attempt }}-hashes-windows
+          enableCrossOsArchive: true
+          path: |
+            hashes/windows.txt
       - name: pluginval (VST3)
         shell: bash
         run: |
           curl -sSL -o pv.zip https://github.com/Tracktion/pluginval/releases/latest/download/pluginval_Windows.zip
           unzip -q pv.zip -d pv
           # no GPU on the Windows runner, so the editor (OpenGL) tests are skipped here; the Mac job opens the editor
-          tools/ci_run.sh "pluginval VST3 (Windows)" pv/pluginval.exe --strictness-level 5 --skip-gui-tests --validate-in-process --output-dir out/pluginval-windows --validate "wbin/Mercy.vst3"
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: pluginval-windows
-          retention-days: 2
-          path: out/pluginval-windows
+          tools/ci_run.sh "pluginval VST3 (Windows)" pv/pluginval.exe --strictness-level 5 --skip-gui-tests --validate-in-process --output-dir out/pluginval-windows --validate "bin/win/Mercy.vst3"
 
   # ---------------------------------------------------------------------------------------- Mac (Apple Silicon)
   mac:
@@ -141,27 +139,32 @@ jobs:
         run: |
           mkdir -p out/render-mac
           bin/mac/mercy-render test/dry_loop.wav out/render-mac
+          mkdir -p hashes && cp out/render-mac/hashes.txt hashes/mac.txt
       - name: Screenshots (Mac)
         continue-on-error: true
         run: tools/ci_run.sh "Mac screenshots" tools/screenshots.sh mac out/screens-mac
       - name: Package Mac zip
         run: tools/package.sh mac bin/mac $VERSION
-      - uses: actions/upload-artifact@v4
+      - name: Publish to the "Latest build" release
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view latest-build >/dev/null 2>&1 || gh release create latest-build --prerelease --title "Latest build" --notes "Built automatically from every push." || true
+          gh release upload latest-build out/Mercy_v*_Mac.zip --clobber
+          gh release edit latest-build --notes "Built automatically from commit ${GITHUB_SHA::7} ($(date -u '+%Y-%m-%d %H:%M UTC'))." || true
+      - uses: actions/cache/save@v4
         with:
-          name: Mercy-Mac
-          retention-days: 7
-          path: out/Mercy_v*_Mac.zip
-      - uses: actions/upload-artifact@v4
+          key: ci-${{ github.run_id }}-${{ github.run_attempt }}-hashes-mac
+          enableCrossOsArchive: true
+          path: |
+            hashes/mac.txt
+      - uses: actions/cache/save@v4
         with:
-          name: render-mac
-          retention-days: 2
-          path: out/render-mac/hashes.txt
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: screens-mac
-          retention-days: 2
-          path: out/screens-mac
+          key: ci-${{ github.run_id }}-${{ github.run_attempt }}-screens-mac
+          enableCrossOsArchive: true
+          path: |
+            out/screens-mac
       - name: Install into the user plug-in folders
         run: |
           mkdir -p ~/Library/Audio/Plug-Ins/Components ~/Library/Audio/Plug-Ins/VST3
@@ -187,14 +190,6 @@ jobs:
             echo "::error title=AU crash backtrace::$(grep -A 45 'stop reason' lldb.txt | head -60 | sed -e 's/%/%25/g' | awk '{printf "%s%%0A", $0}')"
           fi
           tools/ci_run.sh "pluginval AU (Mac)" $PV --strictness-level 5 --validate-in-process --output-dir out/pluginval-mac --validate ~/Library/Audio/Plug-Ins/Components/Mercy.component
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: pluginval-mac
-          retention-days: 2
-          path: |
-            out/pluginval-mac
-            auval.txt
 
   # ---------------------------------------------------------------------------------------- same sound, same look
   compare:
@@ -203,12 +198,33 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/cache/restore@v4
         with:
-          path: art
+          key: ci-${{ github.run_id }}-${{ github.run_attempt }}-screens-reference
+          enableCrossOsArchive: true
+          path: |
+            out/screens-reference
+      - uses: actions/cache/restore@v4
+        with:
+          key: ci-${{ github.run_id }}-${{ github.run_attempt }}-hashes-windows
+          enableCrossOsArchive: true
+          path: |
+            hashes/windows.txt
+      - uses: actions/cache/restore@v4
+        with:
+          key: ci-${{ github.run_id }}-${{ github.run_attempt }}-hashes-mac
+          enableCrossOsArchive: true
+          path: |
+            hashes/mac.txt
+      - uses: actions/cache/restore@v4
+        with:
+          key: ci-${{ github.run_id }}-${{ github.run_attempt }}-screens-mac
+          enableCrossOsArchive: true
+          path: |
+            out/screens-mac
       - name: Sound - Windows vs Mac (must be bit-identical)
         run: |
-          W=art/render-windows/hashes.txt; M=art/render-mac/hashes.txt
+          W=hashes/windows.txt; M=hashes/mac.txt
           total=$(wc -l < $W); same=$(comm -12 <(sort $W) <(sort $M) | wc -l)
           msg="$total scenarios: $same bit-identical, $((total - same)) different"
           echo "### Sound: Windows vs Mac" >> $GITHUB_STEP_SUMMARY; echo "$msg" >> $GITHUB_STEP_SUMMARY
@@ -220,15 +236,10 @@ jobs:
       - name: Look - reference vs Mac
         run: |
           sudo apt-get install -y -qq python3-pil
-          python3 tools/compare_screens.py art/screens-reference art/screens-mac out/screens-compare || echo "LOOK_FAILED=1" >> $GITHUB_ENV
+          python3 tools/compare_screens.py out/screens-reference out/screens-mac out/screens-compare || echo "LOOK_FAILED=1" >> $GITHUB_ENV
           cat out/screens-compare/report.md >> $GITHUB_STEP_SUMMARY
           if [ -f out/screens-compare/map.txt ]; then echo "::notice title=Where the Mac screenshot differs::$(awk '{printf "%s%%0A", $0}' out/screens-compare/map.txt)"; fi
           if [ -f out/screens-compare/art.txt ]; then echo "::notice title=Difference close-up::$(awk '{printf "%s%%0A", $0}' out/screens-compare/art.txt)"; fi
           echo "::notice title=Look reference vs Mac::$(grep -E '\| s_' out/screens-compare/report.md | awk -F'|' '{printf "%s %s %s;", $2, $3, $4}')"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: screens-compare
-          retention-days: 2
-          path: out/screens-compare
       - name: Fail if the Mac interface looks different
         run: test -z "$LOOK_FAILED"
