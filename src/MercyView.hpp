@@ -180,7 +180,7 @@ static const int kCorner3[][2] = {{0, 0}, {1, 0}, {1, 1}};
 // value mapping / formatting
 
 static inline bool isLogParam(uint32_t p) {
-    return p == pSqAttack || p == pSqRelease || p == pSmpRate || p == pToneDepth || p == pGateHold || p == pHpf || p == pLpf || p == pRvDecay || p == pWtFreq;
+    return p == pSqAttack || p == pSqRelease || p == pSmpRate || p == pToneDepth || p == pGateHold || p == pHpf || p == pLpf || p == pRvDecay;
 }
 static inline float toNorm(uint32_t p, float v) {
     const ParamInfo& pi = kParamInfo[p];
@@ -198,7 +198,7 @@ static inline float fromNorm(uint32_t p, float n) {
 static inline bool isPercentParam(uint32_t p) {
     return p == pSquash || p == pDirt || p == pAge || p == pMix || p == pSmpCrunch || p == pPreLowEmph ||
            p == pPreColor || p == pSqBlend || p == pClipAmount || p == pWidth || p == pTrDetect ||
-           p == pRvTone || p == pRvDuck || p == pRvMix || p == pWtFocus || p == pWtHarm;
+           p == pRvTone || p == pRvDuck || p == pRvMix || p == pPreThick;
 }
 static std::string fmtValue(uint32_t p, float v) {
     char b[48];
@@ -222,8 +222,7 @@ static std::string fmtValue(uint32_t p, float v) {
     else if (p == pSmpBits) std::snprintf(b, sizeof b, "%.1f bit", v);
     else if (p == pRvDecay) std::snprintf(b, sizeof b, "%.1f s", v);
     else if (p == pRvPre) std::snprintf(b, sizeof b, "%.0f ms", v);
-    else if (p == pWtFreq) std::snprintf(b, sizeof b, "%.0f Hz", v);
-    else if (p == pWtAmount) std::snprintf(b, sizeof b, "%+.1f dB", v);
+    else if (p == pWtFreq || p == pWtAmount) std::snprintf(b, sizeof b, "%.1f", v);
     else std::snprintf(b, sizeof b, "%.2f", v);
     return b;
 }
@@ -469,7 +468,7 @@ public:
     // ---- interface state, also saved with the project as plugin state "ui"
     std::string encodeUiState() const {
         std::ostringstream o;
-        o << "v1;page=" << S.page << ";bake=" << (S.bakeOpen ? 1 : 0) << ";bulk=" << (S.bulkMode ? 1 : 0)
+        o << "v1;pv=2;page=" << S.page << ";bake=" << (S.bakeOpen ? 1 : 0) << ";bulk=" << (S.bulkMode ? 1 : 0)
           << ";bscroll=" << S.bakeScroll << ";preset=" << S.presetIdx << ";pmod=" << (S.presetModified ? 1 : 0)
           << ";ab=" << S.abCur << ";dark=" << (S.dark ? 1 : 0);
         for (int k = 0; k < 2; ++k) {
@@ -493,6 +492,7 @@ public:
     }
     void applyUiState(const char* s) {
         if (s == nullptr || std::strncmp(s, "v1;", 3) != 0) return;
+        int rawPreset = -1, presetListV = 1;
         const std::string str(s + 3);
         size_t pos = 0;
         while (pos < str.size()) {
@@ -508,7 +508,8 @@ public:
             else if (k == "bake") S.bakeOpen = iv == 1;
             else if (k == "bulk") S.bulkMode = iv == 1;
             else if (k == "bscroll") S.bakeScroll = std::max(0, iv);
-            else if (k == "preset") S.presetIdx = std::max(0, std::min(iv, numPresets() - 1));
+            else if (k == "preset") rawPreset = iv;
+            else if (k == "pv") presetListV = iv;
             else if (k == "pmod") S.presetModified = iv == 1;
             else if (k == "ab") S.abCur = iv == 1 ? 1 : 0;
             else if (k == "dark") S.dark = iv != 0;
@@ -528,6 +529,11 @@ public:
                     for (int i = 0; i < kNumStages; ++i) sn.order[i] = kDefaultOrder[i];
                 sn.valid = true;
             }
+        }
+        if (rawPreset >= 0) {
+            // sessions saved before 2.0 (no "pv"): user presets came right after the 34 factory ones
+            if (presetListV < 2 && rawPreset >= kNumFactoryV1) rawPreset += kNumFactory - kNumFactoryV1;
+            S.presetIdx = std::max(0, std::min(rawPreset, numPresets() - 1));
         }
         if (S.bakeOpen) { ensureBaker(); bakeItems = S.baker->snapshot(); }
     }
@@ -589,8 +595,10 @@ private:
     struct PopRow { int header; int a, b; };
     std::vector<PopRow> popRows() const {
         std::vector<PopRow> rows;
+        rows.push_back({-3, -1, -1});     // new in 2.0 (nothing + verb / weight / thick)
+        for (int i = kNumFactoryV1; i < kNumFactory; i += 2) rows.push_back({0, i, i + 1 < kNumFactory ? i + 1 : -1});
         rows.push_back({-1, -1, -1});
-        for (int i = 0; i < kNumFactory; i += 2) rows.push_back({0, i, i + 1 < kNumFactory ? i + 1 : -1});
+        for (int i = 0; i < kNumFactoryV1; i += 2) rows.push_back({0, i, i + 1 < kNumFactoryV1 ? i + 1 : -1});
         if (!userPresets.empty()) {
             rows.push_back({-2, -1, -1});
             const int n = (int)userPresets.size();
@@ -713,7 +721,7 @@ private:
             const float y = ly + k * kPopRowH;
             const PopRow& row = rows[r];
             if (row.header != 0) {
-                const char* h = row.header == -1 ? "factory" : "user";
+                const char* h = row.header == -1 ? "factory" : (row.header == -3 ? "new in 2.0" : "user");
                 txt(g, fMono, 8.5f, lx, y - 5, h, T.grey);
                 ln(g, lx + tw(fMono, 8.5f, h) + 10, y, lx + cw * 2 - 12, y, T.hair2);
                 continue;
@@ -875,7 +883,7 @@ private:
             {pTrEnv, pTrDetect},
             {pShMode, pShChar, pShAttack, pShSustain, pShFocus},
             {pRvMode, pRvDecay, pRvPre, pRvTone, pRvDuck, pRvMix},
-            {pWtFreq, pWtAmount, pWtFocus, pWtHarm},
+            {pWtCenter, pWtFreq, pWtAmount, pWtFlat},
         };
         static const int cnt[kNumStages] = {5, 4, 6, 5, 3, 4, 2, 5, 6, 4};
         out = sp[st]; return cnt[st];
@@ -930,10 +938,11 @@ private:
             {"drum room", {1, .8f, 5, .55f, .3f, .25f}}, {"big room", {1, 1.6f, 10, .6f, .4f, .3f}},
             {"gated snare", {2, .6f, 0, .5f, 0, .35f}}, {"industrial gate", {2, 1.1f, 0, .35f, 0, .45f}},
             {"long gate", {2, 2.0f, 5, .6f, .1f, .4f}}};
-        //                        freq amount focus harmonics
+        //                        center freq amount flat
         static const ModPreset wgt[] = {{"default", {}},
-            {"kick weight", {55, 4, .5f, .25f}}, {"808 chest", {45, 6, .7f, .5f}}, {"sub bloom", {35, 5, .3f, .1f}},
-            {"tight thump", {70, 3, .85f, .2f}}, {"phone speaker", {55, 3, .5f, .9f}}, {"big body", {60, 8, .6f, .4f}}};
+            {"kick weight", {0, 6, 4, 0}}, {"808 chest", {0, 4, 6, 0}}, {"sub bloom", {0, 2, 5, 1}},
+            {"kick body", {1, 2, 4, 0}}, {"tight thump", {1, 4, 3, 0}}, {"snare body", {1, 9, 3, 1}},
+            {"big weight", {0, 5, 8, 0}}};
         switch (st) {
         case kStSampler: out = smp; return (int)(sizeof smp / sizeof smp[0]);
         case kStPreamp: out = pre; return (int)(sizeof pre / sizeof pre[0]);
@@ -997,7 +1006,7 @@ private:
         host->hostRepaint();
     }
     void drawModulePopup(NanoVG& g) {
-        static const char* names[kNumStages] = {"sampler", "preamp", "squash", "tone", "clip", "gate/width", "transient", "shape", "reverb", "weight"};
+        static const char* names[kNumStages] = {"sampler", "preamp", "squash", "tone", "clip", "gate/width", "transient", "shape", "verb", "weight"};
         rc(g, 84.5f, 31, kW - 84.5f, kH - 31, alpha(T.dim, .8f));
         rc(g, modX, modY, kModW, modH, T.paper);
         ro(g, modX, modY, kModW, modH, T.ink, 1.5f);
@@ -1426,7 +1435,7 @@ private:
                 break;
             case kStPreamp:
                 options(pPreFlavor, {"console", "tube", "tape", "xfmr"}, nullptr, nullptr);
-                mini(pPreDrive, "drive"); mini(pPreLowEmph, "low em."); mini(pPreColor, "color");
+                mini(pPreDrive, "drive"); mini(pPreLowEmph, "low em."); mini(pPreColor, "color"); mini(pPreThick, "thick");
                 break;
             case kStSquash:
                 mini(pSqThresh, "threshold"); mini(pSqRatio, "ratio"); mini(pSqAttack, "attack");
@@ -1471,7 +1480,9 @@ private:
                 mini(pRvDuck, "duck"); mini(pRvMix, "mix");
                 break;
             case kStWeight:
-                mini(pWtFreq, "freq"); mini(pWtAmount, "amount"); mini(pWtFocus, "focus"); mini(pWtHarm, "harmonics");
+                options(pWtCenter, {"40", "100"}, "center", nullptr);
+                mini(pWtFreq, "freq"); mini(pWtAmount, "amount");
+                onoff(pWtFlat, "flat");
                 break;
             }
             figY[pos] = sy + 50 + rows * 25 + 2;
@@ -2182,7 +2193,7 @@ private:
                 }
             } break;
             case kStPreamp: {
-                const float bx = fx, by = fy + 14, bs = 36;
+                const float bx = fx, by = fy + 10, bs = 30;
                 txt(g, fMono, 7.5f, fx, fy, "fig. drive curve", T.ink);
                 ro(g, bx, by, bs, bs, T.hair, 1);
                 ln(g, bx, by + bs / 2, bx + bs, by + bs / 2, T.hair2);
@@ -2292,27 +2303,25 @@ private:
                 else cross(g, hx + 1.2f, hy - 7, 3, T.red);
             } break;
             case kStWeight: {
+                // "ol": lights red while weight pushes the signal past 0 dB
+                const bool ol = S.values[pWtOl] > 0.5f;
+                txt(g, fMono, 8, hx + 12, hy - 4, "ol", T.grey);
+                if (ol) dot(g, hx + 30, hy, 3.5f, T.red); else ro(g, hx + 26.5f, hy - 3.5f, 7, 7, T.grey, 1);
                 txt(g, fMono, 7.5f, fx, fy, "fig. low end", T.ink);
-                const float f0 = clampf(S.values[pWtFreq], 20, 200), amt = clampf(S.values[pWtAmount], 0, 12);
-                const float foc = clampf(S.values[pWtFocus], 0, 1), hm = clampf(S.values[pWtHarm], 0, 1);
+                const bool flat = S.values[pWtFlat] > .5f;
+                const float f0 = (float)Weight::freqOf(S.values[pWtCenter], S.values[pWtFreq]), amt = clampf(S.values[pWtAmount], 0, 10) * 1.2f;
                 const float by = fy + 46, top = fy + 16;
                 auto X = [&](float f) { return fx + std::log(f / 20.f) / std::log(20.f) * FW; };   // 20 Hz .. 400 Hz
                 ln(g, fx, by, fx + FW, by, T.hair);
                 float xs[71], ys[71];
-                const float bwo = .9f - .6f * foc; // bump width in octaves
                 for (int i = 0; i <= 70; ++i) {
                     const float f = 20.f * std::pow(20.f, i / 70.f), o = std::log2(f / f0);
-                    float db = amt * std::exp(-(o / bwo) * (o / bwo));
-                    if (foc > .05f && f < f0 * .6f * foc) db -= std::min(14.f, 12.f * std::log2(f0 * .6f * foc / f));
+                    float db = amt * std::exp(-(o / .55f) * (o / .55f));
+                    if (!flat && f < f0 * .7f) db -= std::min(14.f, 12.f * std::log2(f0 * .7f / f));
                     xs[i] = fx + i / 70.f * FW; ys[i] = by - 4 - db * 1.9f;
                 }
                 poly(g, xs, ys, 71, T.ink, 1.3f);
                 dot(g, X(f0), by - 4 - amt * 1.9f, 3, T.red);
-                for (int k = 2; k <= 4; ++k) {                     // harmonics: ticks at 2f, 3f, 4f
-                    const float hxk = X(f0 * k); if (hxk > fx + FW) break;
-                    const float hh = hm * (16.f - k * 3.f);
-                    if (hh > .5f) rc(g, hxk - 1, by - hh, 2, hh, acc1());
-                }
                 std::snprintf(b, sizeof b, "%.0f Hz / %+.0f dB", f0, amt);
                 txt(g, fMono, 7.5f, fx + FW, top - 16, b, T.ink, 2);
             } break;
@@ -2327,7 +2336,7 @@ private:
     void drawReorderGhost(NanoVG& g) {
         const int target = sectionAt(dragX, dragY);
         if (target >= 0) ro(g, secXs(target) + 4, secYs(target) + 4, kSecW - 8, 206, T.red, 1.5f);
-        static const char* names[kNumStages] = {"sampler", "preamp", "squash", "tone", "clip", "gate/width", "transient", "shape", "reverb", "weight"};
+        static const char* names[kNumStages] = {"sampler", "preamp", "squash", "tone", "clip", "gate/width", "transient", "shape", "verb", "weight"};
         txt(g, fSemi, 14, dragX + 10, dragY - 7, names[S.order[reorderFrom]], T.red);
     }
 
@@ -2490,7 +2499,7 @@ private:
         } break;
 
         case tSectionHead: {
-            static const char* names[kNumStages] = {"sampler", "preamp", "squash", "tone", "clip", "gate/width", "transient", "shape", "reverb", "weight"};
+            static const char* names[kNumStages] = {"sampler", "preamp", "squash", "tone", "clip", "gate/width", "transient", "shape", "verb", "weight"};
             const int pos = (int)c.a;
             const float x = secXs(pos), y = secYs(pos);
             const bool dim = reorderFrom == pos && reorderMoved;

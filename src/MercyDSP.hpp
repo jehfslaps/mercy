@@ -57,12 +57,14 @@ enum Param : uint32_t {
     pShOn, pShMode, pShChar, pShAttack, pShSustain, pShFocus,
     // output filters (soft 12 dB/oct, after auto gain)
     pHpf, pLpf,
-    // reverb (v2.0): plate / room / gated, tuned for drums
+    // verb (v2.0): plate / room / gated, tuned for drums
     pRvOn, pRvMode, pRvDecay, pRvPre, pRvTone, pRvDuck, pRvMix,
-    // weight (v2.0): resonant low-end bump + low harmonics
-    pWtOn, pWtFreq, pWtAmount, pWtFocus, pWtHarm,
-    // outputs (meters)
-    pMeterIn, pMeterOut, pMeterGR,
+    // weight (v2.0): bass resonance (center 40/100, freq, amount, flat)
+    pWtOn, pWtCenter, pWtFreq, pWtAmount, pWtFlat,
+    // preamp "thick" (v2.0): keeps the low end out of the saturation
+    pPreThick,
+    // outputs (meters, weight overload light)
+    pMeterIn, pMeterOut, pMeterGR, pWtOl,
     kNumParams
 };
 
@@ -140,22 +142,24 @@ static const ParamInfo kParamInfo[kNumParams] = {
     {"hpf", "High Pass", "Hz", 20, 2000, 20, false, false},
     {"lpf", "Low Pass", "Hz", 500, 20000, 20000, false, false},
     // new modules start off, so sessions and presets from earlier versions sound exactly the same
-    {"rv_on", "Reverb On", "", 0, 1, 0, true, true},
-    {"rv_mode", "Reverb Mode", "", 0, 2, 0, true, false},
-    {"rv_decay", "Reverb Decay", "s", 0.1f, 4, 1.2f, false, false},
-    {"rv_pre", "Reverb Pre-delay", "ms", 0, 100, 10, false, false},
-    {"rv_tone", "Reverb Tone", "%", 0, 1, 0.55f, false, false},
-    {"rv_duck", "Reverb Duck", "%", 0, 1, 0.3f, false, false},
-    {"rv_mix", "Reverb Mix", "%", 0, 1, 0.25f, false, false},
+    {"rv_on", "Verb On", "", 0, 1, 0, true, true},
+    {"rv_mode", "Verb Mode", "", 0, 2, 0, true, false},
+    {"rv_decay", "Verb Decay", "s", 0.1f, 4, 1.2f, false, false},
+    {"rv_pre", "Verb Pre-delay", "ms", 0, 100, 10, false, false},
+    {"rv_tone", "Verb Tone", "%", 0, 1, 0.55f, false, false},
+    {"rv_duck", "Verb Duck", "%", 0, 1, 0.3f, false, false},
+    {"rv_mix", "Verb Mix", "%", 0, 1, 0.25f, false, false},
     {"wt_on", "Weight On", "", 0, 1, 0, true, true},
-    {"wt_freq", "Weight Frequency", "Hz", 20, 200, 55, false, false},
-    {"wt_amount", "Weight Amount", "dB", 0, 12, 4, false, false},
-    {"wt_focus", "Weight Focus", "%", 0, 1, 0.5f, false, false},
-    {"wt_harm", "Weight Harmonics", "%", 0, 1, 0.3f, false, false},
+    {"wt_center", "Weight Center", "", 0, 1, 0, true, false},      // 0 = 40 (20-80 Hz), 1 = 100 (50-200 Hz)
+    {"wt_freq2", "Weight Frequency", "", 0, 10, 4, false, false},  // 0..10 across the center's range
+    {"wt_amount2", "Weight Amount", "", 0, 10, 3, false, false},   // 0..10 = 0..+12 dB
+    {"wt_flat", "Weight Flat", "", 0, 1, 0, true, true},           // on: no tightening under the bump
+    {"pre_thick", "Preamp Thick", "%", 0, 1, 0, false, false},
 
     {"meter_in", "Input Level", "dB", -60, 6, -60, false, false},
     {"meter_out", "Output Level", "dB", -60, 6, -60, false, false},
     {"meter_gr", "Gain Reduction", "dB", 0, 30, 0, false, false},
+    {"wt_ol", "Weight Overload", "", 0, 1, 0, false, false},
 };
 
 // Era starting points for the advanced page (indices pSmpOn .. pMonoLows)
@@ -175,15 +179,15 @@ static const float kEraDefaults[3][kNumAdvParams] = {
      1, 0, 5, 0, 2, 9,       1, 1, 0.6f, -1.0f,   1, -35, 40, 0.6f, 1},
 };
 
-// v2.0 modules: era starting points (indices pRvOn .. pWtHarm); applied when an era tab is clicked
+// v2.0 modules: era starting points (indices pRvOn .. pPreThick); applied when an era tab is clicked
 static constexpr uint32_t kFirstNewParam = pRvOn;
-static constexpr uint32_t kLastNewParam = pWtHarm;
+static constexpr uint32_t kLastNewParam = pPreThick;
 static constexpr uint32_t kNumNewParams = kLastNewParam - kFirstNewParam + 1;
 static const float kEraNew[3][kNumNewParams] = {
-    // on mode decay pre  tone  duck  mix     on freq amt focus harm
-    {1, 0, 1.8f, 15, 0.6f, 0.4f, 0.22f,   1, 50, 3, 0.4f, 0.25f},   // FANTASY: plate + a little weight
-    {1, 1, 0.7f, 5, 0.5f, 0.3f, 0.2f,     0, 60, 4, 0.5f, 0.3f},    // THRONE: room
-    {1, 2, 0.6f, 0, 0.45f, 0.1f, 0.3f,    1, 45, 6, 0.7f, 0.6f},    // YEEZUS: gated + heavy weight
+    // on mode decay pre  tone  duck  mix     on ctr freq amt flat   thick
+    {1, 0, 1.8f, 15, 0.6f, 0.4f, 0.22f,   1, 0, 4, 3, 0,          0.35f},   // FANTASY: plate + a little weight, thick
+    {1, 1, 0.7f, 5, 0.5f, 0.3f, 0.2f,     0, 0, 5, 3, 0,          0.25f},   // THRONE: room, a little thick
+    {1, 2, 0.6f, 0, 0.45f, 0.1f, 0.3f,    1, 0, 3, 6, 0,          0.f},     // YEEZUS: gated + heavy weight, crushed lows
 };
 
 // Stage ids for chain order
@@ -531,40 +535,26 @@ struct DrumReverb {
 };
 
 // ---------------------------------------------------------------------------------------------
-// Weight (v2.0): a tuned resonant bump in the low end (with the area under it tightened as the
-// focus goes up), plus harmonics of that band so the low end reads on small speakers.
+// Weight (v2.0): a bass resonance tool. A resonant bump (center 40: 20-80 Hz, center 100:
+// 50-200 Hz) with the area under it tightened (a resonant high-pass just below), or left alone ("flat").
 struct Weight {
-    Biquad bump[2], under[2], band[2], hHp[2], hLp[2];
-    float harm = 0.3f; bool underOn = false;
-    void reset() { for (int ch = 0; ch < 2; ++ch) { bump[ch].reset(); under[ch].reset(); band[ch].reset(); hHp[ch].reset(); hLp[ch].reset(); } }
-    void configure(double fs, float freq, float amountDb, float focus, float harmonics) {
-        const double f = clampf(freq, 20, 200), F = clampf(focus, 0, 1);
-        const double q = 0.7 + 3.3 * F;
-        underOn = F > 0.05;
-        harm = clampf(harmonics, 0, 1);
+    Biquad bump[2], under[2];
+    bool flat = false; float olHold = 0, olRel = 0;
+    void reset() { for (int ch = 0; ch < 2; ++ch) { bump[ch].reset(); under[ch].reset(); } olHold = 0; }
+    static double freqOf(float center, float k) { return (center > 0.5f ? 50.0 : 20.0) * dm::pow(4.0, (double)clampf(k, 0, 10) / 10.0); }
+    void configure(double fs, float center, float k, float amount, float flatOn) {
+        const double f = freqOf(center, k), db = clampf(amount, 0, 10) * 1.2;
+        flat = flatOn > 0.5f;
         for (int ch = 0; ch < 2; ++ch) {
-            bump[ch].peak(fs, f, q, clampf(amountDb, 0, 12));
-            if (underOn) under[ch].highpass(fs, std::max(15.0, f * 0.6 * F), 0.6);
-            band[ch].lowpass(fs, f * 1.6, 0.707);
-            hHp[ch].highpass(fs, f * 1.8, 0.707);
-            hLp[ch].lowpass(fs, std::min(1200.0, fs * 0.45), 0.707);
+            bump[ch].peak(fs, f, 1.4, db);
+            if (!flat) under[ch].highpass(fs, f * 0.7, 0.75);
         }
+        olRel = (float)(0.3 * fs);
     }
     inline void process(float& l, float& r) {
-        float* io[2] = {&l, &r};
-        for (int ch = 0; ch < 2; ++ch) {
-            float x = *io[ch];
-            const float lb = band[ch].process(x);
-            float y = bump[ch].process(x);
-            if (underOn) y = under[ch].process(y);
-            if (harm > 0.001f) {
-                const float u = lb * 4.f;
-                const float s = dm::tanh(u + 0.35f * u * u / (1.f + u * u)) * 0.25f;   // even + odd harmonics
-                const float h = hLp[ch].process(hHp[ch].process(s));
-                y += h * harm * 3.2f;
-            } else { hLp[ch].process(hHp[ch].process(0.f)); }
-            *io[ch] = y;
-        }
+        l = bump[0].process(l); r = bump[1].process(r);
+        if (!flat) { l = under[0].process(l); r = under[1].process(r); }
+        if (std::fabs(l) > 1.f || std::fabs(r) > 1.f) olHold = olRel; else if (olHold > 0) olHold -= 1.f;
     }
 };
 
@@ -589,7 +579,7 @@ public:
     uint32_t latencySamples() const { return laLen; }
 
     // meters (read by plugin wrapper)
-    float meterIn = -60, meterOut = -60, meterGR = 0;
+    float meterIn = -60, meterOut = -60, meterGR = 0, wtOverload = 0;
 
     void setParam(uint32_t i, float v) { if (i < kNumParams) params[i].store(v); }
     float getParam(uint32_t i) const { return i < kNumParams ? params[i].load() : 0.f; }
@@ -742,6 +732,7 @@ public:
         meterOut = std::max(outDb, meterOut - fallDb);
         meterGR = std::max(blockGR * (on[kStSquash] ? 1.f : 0.f), meterGR - fallDb);
         meterIn = clampf(meterIn, -60, 6); meterOut = clampf(meterOut, -60, 6); meterGR = clampf(meterGR, 0, 30);
+        wtOverload = (on[kStWeight] && wt.olHold > 0) ? 1.f : 0.f;
     }
 
 private:
@@ -775,6 +766,7 @@ private:
     bool preHardClip = false;
     Biquad preLowPre[2], preLowPost[2], preHiPre[2], preHiPost[2];
     Upsampler2x preUp[2]; Downsampler2x preDown[2];
+    Biquad thLp1[2], thLp2[2], thHp1[2], thHp2[2]; bool thickOn = false; float thKeep = 0, thLowGain = 1;
     float preDcX[2] = {}, preDcY[2] = {};
 
     // ---- squash
@@ -1025,6 +1017,20 @@ private:
                 preHiPost[ch].highshelf(fs, 4500, -hiEmph);
             }
             preHardClip = (era == 2);
+            // thick: 0 = off (identical to v1.9); up = split rises 60 -> 250 Hz and more of the lows stay clean
+            const float th = clampf(P(pPreThick), 0, 1);
+            const bool tOn = th > 0.001f;
+            if (tOn && !thickOn) for (int ch = 0; ch < 2; ++ch) { thLp1[ch].reset(); thLp2[ch].reset(); thHp1[ch].reset(); thHp2[ch].reset(); }
+            thickOn = tOn;
+            if (thickOn) {
+                const double fc = 60.0 * dm::pow(250.0 / 60.0, (double)th);
+                thKeep = std::min(1.f, th * 1.6f);
+                thLowGain = std::min(preGain * preMakeup, 1.12f);   // matches the saturated path (at most +1 dB fuller)
+                for (int ch = 0; ch < 2; ++ch) {
+                    thLp1[ch].lowpass(fs, fc, 0.70710678); thLp2[ch].lowpass(fs, fc, 0.70710678);
+                    thHp1[ch].highpass(fs, fc, 0.70710678); thHp2[ch].highpass(fs, fc, 0.70710678);
+                }
+            }
         }
 
         // ---------------- squash (SQUASH)
@@ -1135,7 +1141,7 @@ private:
         if (on[kStReverb])
             rv.configure((int)std::lround(clampf(P(pRvMode), 0, 2)), clampf(P(pRvDecay), 0.1f, 4), P(pRvPre), P(pRvTone), P(pRvDuck), P(pRvMix));
         if (on[kStWeight])
-            wt.configure(fs, P(pWtFreq), P(pWtAmount), P(pWtFocus), P(pWtHarm));
+            wt.configure(fs, P(pWtCenter), P(pWtFreq), P(pWtAmount), P(pWtFlat));
 
         // ---------------- output filters: soft knee (Q 0.5), off at the extremes
         {
@@ -1225,6 +1231,15 @@ private:
         float* io[2] = {&l, &r};
         for (int ch = 0; ch < 2; ++ch) {
             float x = *io[ch];
+            // thick: split at the crossover (Linkwitz-Riley 24 dB/oct, sums flat); part of the low band
+            // goes around the saturation, level-matched to the saturator's small-signal gain
+            float keepLow = 0.f;
+            if (thickOn) {
+                const float lo = thLp2[ch].process(thLp1[ch].process(x));
+                const float hi = thHp2[ch].process(thHp1[ch].process(x));
+                keepLow = lo * thKeep;
+                x = hi + lo * (1.f - thKeep);
+            }
             x = preLowPre[ch].process(x);
             x = preHiPre[ch].process(x);
             float y;
@@ -1239,6 +1254,7 @@ private:
             y = preHiPost[ch].process(y);
             y = preLowPost[ch].process(y);
             y *= preMakeup;
+            if (thickOn) y += keepLow * thLowGain;
             // DC removal (asymmetric shapers)
             const float d = y - preDcX[ch] + 0.9995f * preDcY[ch];
             preDcX[ch] = y; preDcY[ch] = d;

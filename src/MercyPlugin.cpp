@@ -100,6 +100,7 @@ protected:
         case pMeterIn: return fEngine.meterIn;
         case pMeterOut: return fEngine.meterOut;
         case pMeterGR: return fEngine.meterGR;
+        case pWtOl: return fEngine.wtOverload;
         default: return fEngine.getParam(index);
         }
     }

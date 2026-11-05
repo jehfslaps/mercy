@@ -7,7 +7,7 @@ namespace mercy {
 struct PresetOverride { uint32_t p; float v; };
 struct FactoryPreset {
     const char* name; int era; float squash, dirt, age, mix;
-    PresetOverride ov[10]; int nov;
+    PresetOverride ov[16]; int nov;
 };
 // overrides are applied on top of the era's advanced defaults
 static const FactoryPreset kFactory[] = {
@@ -46,7 +46,31 @@ static const FactoryPreset kFactory[] = {
     {"telephone break", 2, .6f, .7f, .5f, 1, {{pHpf, 400}, {pLpf, 3500}, {pPreDrive, 14}, {pClipAmount, .6f}}, 4},
     {"big room toms", 0, .6f, .5f, .25f, 1, {{pShMode, 2}, {pShChar, 2}, {pShSustain, 45}, {pToneLowAmt, 5}, {pSqRelease, 250}, {pWidth, 1.3f}}, 6},
     {"melodic sample", 0, .3f, .35f, .4f, .8f, {{pSqAttack, 20}, {pSqRelease, 220}, {pToneLowAmt, 1.5f}, {pMonoLows, 0}, {pPreDrive, 4}}, 5},
+    // ---- new in 2.0 (shown first in the browser): "nothing" + presets built on verb, weight and thick
+#define RV(m, d, pr, t, du, mx) {pRvOn, 1}, {pRvMode, m}, {pRvDecay, d}, {pRvPre, pr}, {pRvTone, t}, {pRvDuck, du}, {pRvMix, mx}
+#define WT(c, f, a, fl) {pWtOn, 1}, {pWtCenter, c}, {pWtFreq, f}, {pWtAmount, a}, {pWtFlat, fl}
+    // every module off: nulls bit for bit against bypass; build a sound from scratch
+    {"nothing", 0, .5f, .5f, .3f, 1, {{pSmpOn, 0}, {pPreOn, 0}, {pSqOn, 0}, {pToneOn, 0}, {pClipOn, 0}, {pGwOn, 0}, {pTrOn, 0}, {pShOn, 0}}, 8},
+    {"plate snare", 0, .55f, .5f, .3f, 1, {RV(0, 1.6f, 20, .65f, .4f, .28f)}, 7},
+    {"dark plate", 0, .6f, .55f, .4f, 1, {RV(0, 2.6f, 15, .3f, .45f, .3f), WT(0, 4, 3, 0), {pToneDepth, 12}}, 13},
+    {"big fantasy", 0, .62f, .55f, .35f, 1, {RV(0, 3.2f, 30, .55f, .5f, .32f), WT(0, 4, 5, 0), {pPreThick, .4f}}, 13},
+    {"wide plate break", 0, .5f, .5f, .3f, 1, {RV(0, 2.0f, 20, .6f, .35f, .26f), {pWidth, 1.25f}}, 8},
+    {"thick break", 0, .55f, .7f, .35f, 1, {{pPreThick, .6f}, {pPreDrive, 12}, WT(0, 5, 3, 0)}, 7},
+    {"sub bloom", 0, .45f, .45f, .3f, 1, {WT(0, 2, 5, 1), {pPreThick, .5f}}, 6},
+    {"throne kit room", 1, .55f, .5f, .3f, 1, {RV(1, .8f, 5, .55f, .3f, .25f), WT(1, 2, 3, 0)}, 12},
+    {"soul room", 1, .4f, .45f, .5f, 1, {RV(1, 1.2f, 8, .45f, .35f, .3f), {pSmpMode, 1}, {pPreThick, .3f}}, 9},
+    {"tight room", 1, .5f, .45f, .25f, 1, {RV(1, .4f, 0, .5f, .2f, .2f), {pTrEnv, 60}}, 8},
+    {"gold plate", 1, .65f, .6f, .25f, 1, {RV(0, 1.2f, 10, .7f, .45f, .2f), WT(1, 3, 3, 0), {pClipAmount, .5f}, {pPreThick, .3f}}, 14},
+    {"kick body", 1, .55f, .5f, .3f, 1, {WT(1, 2, 4, 0), {pShMode, 0}, {pShAttack, 25}}, 7},
+    {"gated snare", 2, .6f, .6f, .3f, 1, {RV(2, .6f, 0, .5f, 0, .35f)}, 7},
+    {"industrial gate", 2, .8f, .85f, .5f, 1, {RV(2, 1.1f, 0, .35f, 0, .45f), WT(0, 3, 6, 0), {pGate, -30}}, 13},
+    {"gated toms", 2, .6f, .55f, .25f, 1, {RV(2, 1.6f, 5, .6f, .1f, .4f), {pShMode, 2}, {pShChar, 2}, {pShSustain, 40}}, 10},
+    {"808 weight", 2, .55f, .6f, .3f, 1, {WT(0, 3, 7, 0)}, 5},
+    {"crushed but heavy", 2, .7f, .9f, .4f, 1, {{pPreThick, .8f}, {pPreDrive, 18}, WT(0, 4, 4, 0)}, 7},
+#undef RV
+#undef WT
 };
+static constexpr int kNumFactoryV1 = 34;   // the 1.x presets keep their places; 2.0's come after (and show first)
 static constexpr int kNumFactory = sizeof(kFactory) / sizeof(kFactory[0]);
 
 } // namespace mercy

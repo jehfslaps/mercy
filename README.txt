@@ -4,21 +4,34 @@ version 2.0  -  Windows 64-bit (VST3 + CLAP)  -  Mac, Apple Silicon (VST3 + AU +
 
 WHAT'S NEW IN 2.0
 -----------------
-- REVERB. A new module on the advanced page, tuned for drums, with three
+- VERB. A new module on the advanced page, tuned for drums, with three
   modes: plate (big, bright snare plate), room (short, punchy kit room)
   and gated (a big tail that slams shut after each hit; "length" sets how
   long it stays open). decay, pre-delay, tone (dark to bright), duck
   (pushes the tail down under each hit so the groove stays clear) and mix.
   The kick stays out of it (built-in low cut).
-- WEIGHT. A new low-end module: a resonant bump you tune to the kick or
-  808 (freq, amount), focus (wide and warm, or tight and resonant, which
-  also tightens the sub under it), and harmonics, so the low end still
-  comes through on phones and laptop speakers.
-- Both modules are off unless you turn them on, so your saved projects
-  and presets sound exactly like before. Clicking an era tab sets them up
-  for that era: fantasy = plate + a little weight, throne = room,
-  yeezus = gated + heavy weight. Both have their own presets (click the
-  module's name) and can be dragged anywhere in the chain like the others.
+- WEIGHT. A bass resonance tool: center 40 (20-80 Hz, subs and 808s) or
+  100 (50-200 Hz, kick body), freq (0-10 across that range), amount
+  (0-10, up to +12 dB) and flat. Flat off = the bump comes with a tight
+  cut under it (bigger and more focused); flat on = just the bump. The
+  little "ol" light by the name flashes red when weight pushes past 0 dB.
+- THICK (in the preamp). Saturation flattens the low end first and the
+  drums lose weight. Turn thick up and the lows go around the saturation
+  (the split rises from 60 to 250 Hz as you turn it), so the grit stays
+  on the top while the kick and sub stay full. At 0 it is off.
+- NOTHING. A preset with every module off: no processing at all (it nulls
+  against bypass sample for sample). Start from it to build a sound from
+  scratch.
+- 17 new presets built on verb, weight and thick. They're listed first in
+  the preset browser, under "new in 2.0". The 34 earlier presets are all
+  still there and sound the same.
+- Verb, weight and thick are off unless you turn them on, so your saved
+  projects and presets sound exactly like before. Clicking an era tab sets
+  them up for that era: fantasy = plate + a little weight + thick,
+  throne = room + a little thick, yeezus = gated + heavy weight (no thick:
+  the crushed low end is the point). Verb and weight have their own
+  presets (click the module's name) and can be dragged anywhere in the
+  chain like the others.
 - The advanced page now has ten modules in 5 columns. Same window size.
 
 

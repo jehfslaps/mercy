@@ -116,9 +116,17 @@ static std::vector<Scenario> scenarios() {
       out.push_back(s); }
     { Scenario s; s.name = "v2_weight_rides"; s.v = withNew(factory(5, 1), 2); s.v[pRvOn] = 0;
       s.automate = [](Engine& e, double t) {
-          e.setParam(pWtFreq, (float)(20 * std::pow(10.0, 0.5 + 0.5 * std::sin(t * 1.1)))); e.setParam(pWtAmount, (float)(6 + 6 * std::sin(t * 1.9)));
-          e.setParam(pWtFocus, (float)(0.5 + 0.5 * std::cos(t * 0.7))); e.setParam(pWtHarm, (float)(0.5 + 0.5 * std::sin(t * 2.6))); };
+          e.setParam(pWtFreq, (float)(5 + 5 * std::sin(t * 1.1))); e.setParam(pWtAmount, (float)(5 + 5 * std::sin(t * 1.9)));
+          e.setParam(pWtCenter, (int)(t / 1.7) % 2 ? 1.f : 0.f); e.setParam(pWtFlat, (int)(t / 1.1) % 2 ? 1.f : 0.f); };
       out.push_back(s); }
+    for (float th : {0.3f, 1.0f}) {
+        Scenario s; s.name = "v2_thick_" + std::to_string((int)(th * 100)); s.v = factory(5, 1); s.v[pPreThick] = th; out.push_back(s);
+        s.name += "_1x"; s.v = factory(5, 0); s.v[pPreThick] = th; out.push_back(s);
+    }
+    { Scenario s; s.name = "v2_thick_ride"; s.v = factory(1, 1);
+      s.automate = [](Engine& e, double t) { e.setParam(pPreThick, (float)std::max(0.0, std::sin(t * 1.3))); e.setParam(pPreDrive, (float)(12 + 12 * std::sin(t * 0.7))); };
+      out.push_back(s); }
+    for (int i = kNumFactoryV1; i < kNumFactory; ++i) { Scenario s; s.name = "v2_factory_" + std::to_string(i); s.v = factory(i, 1); out.push_back(s); }
     { Scenario s; s.name = "v2_on_off"; s.v = withNew(factory(0, 1), 0);
       s.automate = [](Engine& e, double t) { e.setParam(pRvOn, (int)(t / 0.7) % 2 ? 1.f : 0.f); e.setParam(pWtOn, (int)(t / 0.9) % 2 ? 0.f : 1.f); };
       out.push_back(s); }
