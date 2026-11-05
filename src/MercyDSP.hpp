@@ -699,8 +699,9 @@ public:
                     case kStWeight: if (on[kStWeight]) wt.process(l, r); break;
                     }
                 }
-                // DC blocker
-                for (int ch = 0; ch < 2; ++ch) {
+                // DC blocker (skipped when every module is off: then nothing can add DC, and the
+                // "nothing" preset nulls against bypass)
+                if (anyStageOn) for (int ch = 0; ch < 2; ++ch) {
                     float& v = ch ? r : l;
                     const float y = v - dcX[ch] + dcCoef * dcY[ch];
                     dcX[ch] = v; dcY[ch] = y; v = y;
@@ -751,7 +752,7 @@ private:
     int era = 0;
     bool on[kNumStages] = {true, true, true, true, true, true, true, true, false, false};
     int curOrder[kNumStages] = {6, 7, 0, 1, 2, 3, 9, 8, 4, 5};
-    DrumReverb rv; Weight wt; bool rvWasOn = false, wtWasOn = false;
+    DrumReverb rv; Weight wt; bool rvWasOn = false, wtWasOn = false, anyStageOn = true;
     bool oversample = true, autoGain = true, bypass = false;
     float tgtInGain = 1, tgtOutGain = 1, tgtMix = 1;
     OnePoleSmooth smooth[6];
@@ -948,6 +949,12 @@ private:
         if (on[kStReverb] && !rvWasOn) rv.reset();
         if (on[kStWeight] && !wtWasOn) wt.reset();
         rvWasOn = on[kStReverb]; wtWasOn = on[kStWeight];
+        {
+            bool any = false;
+            for (int k = 0; k < kNumStages; ++k) any = any || on[k];
+            if (any && !anyStageOn) { dcX[0] = dcX[1] = dcY[0] = dcY[1] = 0; }
+            anyStageOn = any;
+        }
 
         if (firstBlock) {
             smooth[0].v = tgtInGain; smooth[1].v = tgtMix; smooth[2].v = tgtOutGain;
