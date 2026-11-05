@@ -5,7 +5,7 @@
 using namespace mercy;
 int main() {
     int total = 0, bad = 0;
-    static const char* names[kNumStages] = {"sampler", "preamp", "squash", "tone", "clip", "gate/width", "transient", "shape"};
+    static const char* names[kNumStages] = {"sampler", "preamp", "squash", "tone", "clip", "gate/width", "transient", "shape", "reverb", "weight"};
     for (int st = 0; st < kNumStages; ++st) {
         const MercyView::ModPreset* mp; const int n = MercyView::modPresets(st, mp);
         const uint32_t* ps; const int np = MercyView::stageParams(st, ps);

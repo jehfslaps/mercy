@@ -98,6 +98,36 @@ static std::vector<Scenario> scenarios() {
     // bake (offline render, seamless loop) with the yeezus demo
     { Scenario s; s.name = "bake_yeezus"; s.v = fromLine(kYeezusDemo); s.bake = true; out.push_back(s); }
     { Scenario s; s.name = "bake_sp_grit"; s.v = factory(6, 1); s.bake = true; out.push_back(s); }
+    // ---- v2.0: reverb + weight (every mode, era set-ups, automation, sample rates, order, on/off, bake)
+    auto withNew = [](std::vector<float> v, int era) { for (uint32_t k = 0; k < kNumNewParams; ++k) v[kFirstNewParam + k] = kEraNew[era][k]; return v; };
+    const int eraPreset[3] = {0, 2, 4}; // default break / throne room / yeezus raw
+    for (int e = 0; e < 3; ++e) {
+        Scenario s; s.name = "v2_era" + std::to_string(e) + "_2x"; s.v = withNew(factory(eraPreset[e], 1), e); out.push_back(s);
+        s.name = "v2_era" + std::to_string(e) + "_1x"; s.v = withNew(factory(eraPreset[e], 0), e); out.push_back(s);
+    }
+    for (int m = 0; m < 3; ++m) {
+        Scenario s; s.name = "v2_reverb_mode" + std::to_string(m); s.v = withNew(factory(1, 1), 0); s.v[pRvMode] = (float)m; s.v[pWtOn] = 0; out.push_back(s);
+    }
+    { Scenario s; s.name = "v2_reverb_rides"; s.v = withNew(factory(3, 1), 1);
+      s.automate = [](Engine& e, double t) {
+          e.setParam(pRvDecay, (float)(0.2 + 1.8 * (0.5 + 0.5 * std::sin(t * 1.7)))); e.setParam(pRvMix, (float)(0.5 + 0.5 * std::cos(t * 2.3)));
+          e.setParam(pRvTone, (float)(0.5 + 0.5 * std::sin(t * 0.9))); e.setParam(pRvPre, (float)(50 + 50 * std::sin(t * 3.1)));
+          e.setParam(pRvMode, (float)((int)(t / 1.3) % 3)); e.setParam(pRvDuck, (float)(0.5 + 0.5 * std::sin(t * 4.0))); };
+      out.push_back(s); }
+    { Scenario s; s.name = "v2_weight_rides"; s.v = withNew(factory(5, 1), 2); s.v[pRvOn] = 0;
+      s.automate = [](Engine& e, double t) {
+          e.setParam(pWtFreq, (float)(20 * std::pow(10.0, 0.5 + 0.5 * std::sin(t * 1.1)))); e.setParam(pWtAmount, (float)(6 + 6 * std::sin(t * 1.9)));
+          e.setParam(pWtFocus, (float)(0.5 + 0.5 * std::cos(t * 0.7))); e.setParam(pWtHarm, (float)(0.5 + 0.5 * std::sin(t * 2.6))); };
+      out.push_back(s); }
+    { Scenario s; s.name = "v2_on_off"; s.v = withNew(factory(0, 1), 0);
+      s.automate = [](Engine& e, double t) { e.setParam(pRvOn, (int)(t / 0.7) % 2 ? 1.f : 0.f); e.setParam(pWtOn, (int)(t / 0.9) % 2 ? 0.f : 1.f); };
+      out.push_back(s); }
+    for (double sr : {48000.0, 96000.0}) {
+        Scenario s; s.name = "v2_sr" + std::to_string((int)sr) + "_yeezus"; s.sr = sr; s.v = withNew(fromLine(kYeezusDemo), 2); out.push_back(s);
+    }
+    { Scenario s; s.name = "v2_block333_fantasy"; s.block = 333; s.v = withNew(fromLine(kFantasyDemo), 0); out.push_back(s); }
+    { Scenario s; s.name = "v2_order_reverb_first"; s.v = withNew(factory(2, 1), 1); s.order = "8967012345"; out.push_back(s); }
+    { Scenario s; s.name = "v2_bake_yeezus"; s.v = withNew(fromLine(kYeezusDemo), 2); s.bake = true; out.push_back(s); }
     return out;
 }
 

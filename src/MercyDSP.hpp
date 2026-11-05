@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <algorithm>
 #include <atomic>
+#include <vector>
 #include "MercyMath.hpp"
 #if defined(__x86_64__) || defined(_M_X64) || defined(__SSE2__)
 #include <xmmintrin.h>
@@ -56,6 +57,10 @@ enum Param : uint32_t {
     pShOn, pShMode, pShChar, pShAttack, pShSustain, pShFocus,
     // output filters (soft 12 dB/oct, after auto gain)
     pHpf, pLpf,
+    // reverb (v2.0): plate / room / gated, tuned for drums
+    pRvOn, pRvMode, pRvDecay, pRvPre, pRvTone, pRvDuck, pRvMix,
+    // weight (v2.0): resonant low-end bump + low harmonics
+    pWtOn, pWtFreq, pWtAmount, pWtFocus, pWtHarm,
     // outputs (meters)
     pMeterIn, pMeterOut, pMeterGR,
     kNumParams
@@ -134,6 +139,19 @@ static const ParamInfo kParamInfo[kNumParams] = {
     {"sh_focus", "Shape Focus", "%", -100, 100, 0, false, false},
     {"hpf", "High Pass", "Hz", 20, 2000, 20, false, false},
     {"lpf", "Low Pass", "Hz", 500, 20000, 20000, false, false},
+    // new modules start off, so sessions and presets from earlier versions sound exactly the same
+    {"rv_on", "Reverb On", "", 0, 1, 0, true, true},
+    {"rv_mode", "Reverb Mode", "", 0, 2, 0, true, false},
+    {"rv_decay", "Reverb Decay", "s", 0.1f, 4, 1.2f, false, false},
+    {"rv_pre", "Reverb Pre-delay", "ms", 0, 100, 10, false, false},
+    {"rv_tone", "Reverb Tone", "%", 0, 1, 0.55f, false, false},
+    {"rv_duck", "Reverb Duck", "%", 0, 1, 0.3f, false, false},
+    {"rv_mix", "Reverb Mix", "%", 0, 1, 0.25f, false, false},
+    {"wt_on", "Weight On", "", 0, 1, 0, true, true},
+    {"wt_freq", "Weight Frequency", "Hz", 20, 200, 55, false, false},
+    {"wt_amount", "Weight Amount", "dB", 0, 12, 4, false, false},
+    {"wt_focus", "Weight Focus", "%", 0, 1, 0.5f, false, false},
+    {"wt_harm", "Weight Harmonics", "%", 0, 1, 0.3f, false, false},
 
     {"meter_in", "Input Level", "dB", -60, 6, -60, false, false},
     {"meter_out", "Output Level", "dB", -60, 6, -60, false, false},
@@ -157,25 +175,42 @@ static const float kEraDefaults[3][kNumAdvParams] = {
      1, 0, 5, 0, 2, 9,       1, 1, 0.6f, -1.0f,   1, -35, 40, 0.6f, 1},
 };
 
-// Stage ids for chain order
-enum Stage { kStSampler = 0, kStPreamp, kStSquash, kStTone, kStClip, kStGateWidth, kStTransient, kStShape, kNumStages };
-static const int kDefaultOrder[kNumStages] = {kStTransient, kStShape, kStSampler, kStPreamp, kStSquash, kStTone, kStClip, kStGateWidth};
-static const char* const kDefaultOrderString = "67012345";
+// v2.0 modules: era starting points (indices pRvOn .. pWtHarm); applied when an era tab is clicked
+static constexpr uint32_t kFirstNewParam = pRvOn;
+static constexpr uint32_t kLastNewParam = pWtHarm;
+static constexpr uint32_t kNumNewParams = kLastNewParam - kFirstNewParam + 1;
+static const float kEraNew[3][kNumNewParams] = {
+    // on mode decay pre  tone  duck  mix     on freq amt focus harm
+    {1, 0, 1.8f, 15, 0.6f, 0.4f, 0.22f,   1, 50, 3, 0.4f, 0.25f},   // FANTASY: plate + a little weight
+    {1, 1, 0.7f, 5, 0.5f, 0.3f, 0.2f,     0, 60, 4, 0.5f, 0.3f},    // THRONE: room
+    {1, 2, 0.6f, 0, 0.45f, 0.1f, 0.3f,    1, 45, 6, 0.7f, 0.6f},    // YEEZUS: gated + heavy weight
+};
 
-// Accepts chain orders from every version (v1.0: 6 stages, v1.1: 7, v1.2: 8).
-// Missing new stages are inserted next to the transient stage. Returns false if invalid.
+// Stage ids for chain order
+enum Stage { kStSampler = 0, kStPreamp, kStSquash, kStTone, kStClip, kStGateWidth, kStTransient, kStShape, kStReverb, kStWeight, kNumStages };
+static const int kDefaultOrder[kNumStages] = {kStTransient, kStShape, kStSampler, kStPreamp, kStSquash, kStTone, kStWeight, kStReverb, kStClip, kStGateWidth};
+static const char* const kDefaultOrderString = "6701239845";
+
+// Accepts chain orders from every version (v1.0: 6 stages, v1.1: 7, v1.2-v1.9: 8, v2.0: 10).
+// Missing stages are inserted where the default order has them. Returns false if invalid.
 inline bool normalizeOrder(const char* s, int out[kNumStages]) {
     if (s == nullptr) return false;
     char buf[kNumStages + 1] = {};
     size_t n = 0;
     while (s[n] >= '0' && s[n] <= '9' && n < kNumStages) { buf[n] = s[n]; ++n; }
     if (s[n] >= '0' && s[n] <= '9') return false;
-    if (n == kNumStages - 2) { // v1.0
+    if (n == 6) { // v1.0
         char t[kNumStages + 1] = {'6', '7'};
-        std::memcpy(t + 2, buf, n); std::memcpy(buf, t, kNumStages); n = kNumStages;
-    } else if (n == kNumStages - 1) { // v1.1: put shape right after transient
+        std::memcpy(t + 2, buf, n); std::memcpy(buf, t, 8); n = 8;
+    } else if (n == 7) { // v1.1: put shape right after transient
         char t[kNumStages + 1] = {}; size_t k = 0;
         for (size_t i = 0; i < n; ++i) { t[k++] = buf[i]; if (buf[i] == '6') t[k++] = '7'; }
+        if (k != 8) return false;
+        std::memcpy(buf, t, 8); n = 8;
+    }
+    if (n == 8) { // v1.2-v1.9: weight + reverb go right before clip
+        char t[kNumStages + 1] = {}; size_t k = 0;
+        for (size_t i = 0; i < n; ++i) { if (buf[i] == '4') { t[k++] = '9'; t[k++] = '8'; } t[k++] = buf[i]; }
         if (k != kNumStages) return false;
         std::memcpy(buf, t, kNumStages); n = kNumStages;
     }
@@ -313,6 +348,227 @@ struct OnePoleSmooth {
 };
 
 // ---------------------------------------------------------------------------------------------
+// Reverb for drums (v2.0): a plate-style figure-eight tank (after Dattorro) shared by three modes.
+//   plate: full-size dense tank, bright        room: small tank + early reflections, short
+//   gated: long dense tank behind a gate that opens on each hit and slams shut after "length"
+// Everything is plain arithmetic in a fixed order (no transcendental calls per sample), so Windows
+// and Mac render it bit for bit the same.
+
+struct RvLine {
+    std::vector<float> b; uint32_t mask = 0, w = 0;
+    void init(size_t n) { size_t s = 16; while (s < n + 4) s <<= 1; b.assign(s, 0.f); mask = (uint32_t)s - 1; w = 0; }
+    void clear() { std::fill(b.begin(), b.end(), 0.f); w = 0; }
+    inline void push(float x) { b[w] = x; w = (w + 1) & mask; }
+    inline float tap(uint32_t d) const { return b[(w - 1 - d) & mask]; }       // d = 0: newest
+    inline float tapFrac(float d) const {
+        const uint32_t i = (uint32_t)d; const float f = d - (float)i;
+        const float a = b[(w - 1 - i) & mask], c = b[(w - 2 - i) & mask];
+        return a + (c - a) * f;
+    }
+};
+
+// base lengths at 29761 Hz (Dattorro)
+static const int kRvInAP[4] = {142, 107, 379, 277};
+static const int kRvTank[8] = {672, 4453, 1800, 3720, 908, 4217, 2656, 3163}; // L: ap1 dl1 ap2 dl2, R: same
+static const int kRvTapL[7] = {266, 2974, 1913, 1996, 1990, 187, 1066};
+static const int kRvTapR[7] = {353, 3627, 1228, 2673, 2111, 335, 121};
+
+struct DrumReverb {
+
+    double fs = 44100;
+    RvLine pre, inAP[4], tank[8];
+    int lenIn[4] = {}, lenTank[8] = {}, tapL[7] = {}, tapR[7] = {};
+    float scaleCur = -1;
+    float maxExc = 16;
+    // per-block settings
+    int mode = 0;
+    float preLen = 0, bw = 0.9f, damp = 0.3f, decay = 0.5f, mix = 0.25f, duck = 0.3f;
+    float inDiff1 = 0.75f, inDiff2 = 0.625f, decDiff1 = 0.7f, decDiff2 = 0.5f, exc = 8;
+    float gateLen = 0, gateAtk = 0, gateRel = 0, envAtk = 0, envRel = 0, envSAtk = 0, envSRel = 0, peakRel = 0, duckAtk = 0, duckRel = 0;
+    int erN = 0; int erD[6] = {}; float erG[6] = {};
+    Biquad lowCut[2];
+    // state
+    float bwZ = 0, dampL = 0, dampR = 0, lfoL = 0, lfoR = 0.5f, lfoStep = 0;
+    float env = 0, envS = 0, peak = 0, gate = 0, duckEnv = 0; int gateHold = 0, sinceHit = 1 << 28;
+    float lastL = 0, lastR = 0; // tank feedback (cross-coupled)
+
+    void setSampleRate(double sr) {
+        fs = sr;
+        const double k = fs / 29761.0;
+        pre.init((size_t)(fs * 0.105) + 8);
+        maxExc = (float)(16.0 * k);
+        for (int i = 0; i < 4; ++i) inAP[i].init((size_t)(kRvInAP[i] * k) + 8);
+        for (int i = 0; i < 8; ++i) tank[i].init((size_t)(kRvTank[i] * k + maxExc) + 8);
+        scaleCur = -1;
+        lfoStep = (float)(4.0 * 0.6 / fs);   // triangle 0 -> 1 -> 0: 0.6 Hz
+        for (int ch = 0; ch < 2; ++ch) lowCut[ch].highpass(fs, 200, 0.6);
+        reset();
+    }
+    void reset() {
+        pre.clear(); for (auto& a : inAP) a.clear(); for (auto& t : tank) t.clear();
+        for (auto& b : lowCut) b.reset();
+        bwZ = dampL = dampR = 0; lfoL = 0; lfoR = 0.5f; env = envS = peak = gate = duckEnv = 0; gateHold = 0; sinceHit = 1 << 28;
+        lastL = lastR = 0;
+    }
+    // tank size (fraction of the plate): recomputes the delay lengths (no reallocation)
+    void setScale(float sc) {
+        if (sc == scaleCur) return;
+        scaleCur = sc;
+        const double k = fs / 29761.0;
+        for (int i = 0; i < 4; ++i) lenIn[i] = std::max(1, (int)std::lround(kRvInAP[i] * k * std::max(0.5f, sc)));
+        for (int i = 0; i < 8; ++i) lenTank[i] = std::max(2, (int)std::lround(kRvTank[i] * k * sc));
+        for (int i = 0; i < 7; ++i) { tapL[i] = std::max(1, (int)std::lround(kRvTapL[i] * k * sc)); tapR[i] = std::max(1, (int)std::lround(kRvTapR[i] * k * sc)); }
+    }
+    void configure(int m, float decaySec, float preMs, float tone, float duckAmt, float mixAmt) {
+        mode = m;
+        const float sc = m == 0 ? 1.0f : (m == 1 ? 0.42f : 0.75f);
+        setScale(sc);
+        // reverb time: plate/room = the decay control; gated = a long dense tail behind the gate
+        const float rt = m == 2 ? 3.0f : decaySec;
+        // four decay multiplies per trip around the tank, each about a quarter of the loop
+        const double seg = (double)(lenTank[0] + lenTank[1] + lenTank[2] + lenTank[3] + lenTank[4] + lenTank[5] + lenTank[6] + lenTank[7]) / 4.0 / fs;
+        decay = (float)std::min(0.9995, dm::pow(10.0, -3.0 * seg / std::max(0.05, (double)rt)));
+        preLen = (float)(clampf(preMs, 0, 100) * 0.001 * fs);
+        // tone: input bandwidth 3 -> 16 kHz, tank damping 2 -> 12 kHz (one-pole)
+        const double fIn = 3000.0 * dm::pow(16000.0 / 3000.0, (double)clampf(tone, 0, 1));
+        const double fDp = (m == 1 ? 1600.0 : 2000.0) * dm::pow(6.0, (double)clampf(tone, 0, 1));
+        bw = (float)(1.0 - dm::exp(-2 * kPi * std::min(fIn, fs * 0.45) / fs));
+        damp = (float)dm::exp(-2 * kPi * std::min(fDp, fs * 0.45) / fs);
+        inDiff1 = m == 1 ? 0.7f : 0.75f; inDiff2 = m == 1 ? 0.55f : 0.625f;
+        decDiff1 = 0.7f; decDiff2 = m == 1 ? 0.4f : 0.5f;
+        exc = (float)(m == 1 ? 4.0 : 8.0) * (float)(fs / 29761.0);
+        mix = clampf(mixAmt, 0, 1); duck = clampf(duckAmt, 0, 1);
+        // gate: length follows the decay control (0.1 s -> 140 ms, 1.2 s -> 360 ms, 4 s -> 920 ms)
+        gateLen = (float)((0.12 + 0.2 * clampf(decaySec, 0.1f, 4)) * fs);
+        gateAtk = (float)dm::exp(-1.0 / (fs * 0.0015));
+        gateRel = (float)dm::exp(-1.0 / (fs * 0.012));
+        envAtk = (float)dm::exp(-1.0 / (fs * 0.0005));
+        envRel = (float)dm::exp(-1.0 / (fs * 0.015));
+        envSAtk = (float)dm::exp(-1.0 / (fs * 0.030));
+        envSRel = (float)dm::exp(-1.0 / (fs * 0.150));
+        peakRel = (float)dm::exp(-1.0 / (fs * 0.6));
+        duckAtk = (float)dm::exp(-1.0 / (fs * 0.002));
+        duckRel = (float)dm::exp(-1.0 / (fs * 0.160));
+        // room: six early reflections off the pre-delay line
+        erN = m == 1 ? 6 : 0;
+        static const float erMs[6] = {4.3f, 7.1f, 11.3f, 13.9f, 17.2f, 21.7f}, erGain[6] = {0.62f, -0.55f, 0.48f, -0.42f, 0.34f, -0.28f};
+        for (int i = 0; i < erN; ++i) { erD[i] = (int)std::lround(erMs[i] * 0.001 * fs * (0.7 + 0.3 * clampf(decaySec, 0.1f, 4) / 4.0)); erG[i] = erGain[i]; }
+    }
+    static inline float allpass(RvLine& d, int len, float g, float x) {
+        const float y = d.tap((uint32_t)(len - 1));
+        const float v = x + g * y; d.push(v);
+        return y - g * v;
+    }
+    inline void process(float& l, float& r) {
+        // input: mono sum, low cut (keep the kick out), pre-delay, bandwidth
+        float x = 0.5f * (lowCut[0].process(l) + lowCut[1].process(r));
+        const float ax = std::fabs(x);
+        // hit detector (gated mode) + ducking follower, on the dry input
+        env = ax > env ? ax + envAtk * (env - ax) : ax + envRel * (env - ax);
+        envS = ax > envS ? ax + envSAtk * (envS - ax) : ax + envSRel * (envS - ax);
+        peak = env > peak ? env : env + peakRel * (peak - env);
+        duckEnv = ax > duckEnv ? ax + duckAtk * (duckEnv - ax) : ax + duckRel * (duckEnv - ax);
+        pre.push(x);
+        float in = preLen < 1.f ? x : pre.tapFrac(preLen - 1.f);
+        bwZ += bw * (in - bwZ); in = bwZ;
+        // input diffusion
+        in = allpass(inAP[0], lenIn[0], inDiff1, in);
+        in = allpass(inAP[1], lenIn[1], inDiff1, in);
+        in = allpass(inAP[2], lenIn[2], inDiff2, in);
+        in = allpass(inAP[3], lenIn[3], inDiff2, in);
+        // triangle LFOs for the modulated tank allpasses
+        lfoL += lfoStep; if (lfoL >= 2.f) lfoL -= 2.f;
+        lfoR += lfoStep; if (lfoR >= 2.f) lfoR -= 2.f;
+        const float triL = lfoL < 1.f ? lfoL : 2.f - lfoL, triR = lfoR < 1.f ? lfoR : 2.f - lfoR;
+        // left half: modulated allpass -> delay -> damping -> decay -> allpass -> delay -> decay
+        {
+            float a = in + decay * lastR;
+            const float dd = (float)(lenTank[0] - 1) + exc * triL;
+            const float y = tank[0].tapFrac(dd); const float v = a - decDiff1 * y; tank[0].push(v); a = y + decDiff1 * v;
+            tank[1].push(a);
+            float b = tank[1].tap((uint32_t)(lenTank[1] - 1));
+            dampL = b + damp * (dampL - b); b = dampL * decay;
+            b = allpass(tank[2], lenTank[2], decDiff2, b);
+            tank[3].push(b);
+            lastL = tank[3].tap((uint32_t)(lenTank[3] - 1));
+        }
+        {
+            float a = in + decay * lastL;
+            const float dd = (float)(lenTank[4] - 1) + exc * triR;
+            const float y = tank[4].tapFrac(dd); const float v = a - decDiff1 * y; tank[4].push(v); a = y + decDiff1 * v;
+            tank[5].push(a);
+            float b = tank[5].tap((uint32_t)(lenTank[5] - 1));
+            dampR = b + damp * (dampR - b); b = dampR * decay;
+            b = allpass(tank[6], lenTank[6], decDiff2, b);
+            tank[7].push(b);
+            lastR = tank[7].tap((uint32_t)(lenTank[7] - 1));
+        }
+        // output taps
+        float wl = tank[5].tap(tapL[0]) + tank[5].tap(tapL[1]) - tank[6].tap(tapL[2]) + tank[7].tap(tapL[3])
+                 - tank[1].tap(tapL[4]) - tank[2].tap(tapL[5]) - tank[3].tap(tapL[6]);
+        float wr = tank[1].tap(tapR[0]) + tank[1].tap(tapR[1]) - tank[2].tap(tapR[2]) + tank[3].tap(tapR[3])
+                 - tank[5].tap(tapR[4]) - tank[6].tap(tapR[5]) - tank[7].tap(tapR[6]);
+        wl *= 0.32f; wr *= 0.32f;
+        for (int i = 0; i < erN; ++i) {
+            const float e = pre.tap((uint32_t)std::min<int>((int)(pre.mask - 1), (int)preLen + erD[i])) * erG[i];
+            if (i & 1) wr += e; else wl += e;
+        }
+        // gated: open on a hit, hold for "length", slam shut
+        if (mode == 2) {
+            if (sinceHit < (1 << 28)) ++sinceHit;
+            const bool hit = env > 0.002f && env > 1.8f * envS && env > 0.6f * peak && sinceHit > (int)(0.08 * fs); // a real jump keys it
+            if (hit) { gateHold = (int)gateLen; sinceHit = 0; }
+            const float target = gateHold > 0 ? 1.f : 0.f;
+            if (gateHold > 0) --gateHold;
+            gate = target + (target > gate ? gateAtk : gateRel) * (gate - target);
+            wl *= gate; wr *= gate;
+        }
+        // ducking: the tail steps back under each hit
+        const float dg = 1.f / (1.f + duck * 6.f * duckEnv);
+        const float g = mix * dg * (mode == 0 ? 3.1f : (mode == 1 ? 1.85f : 2.5f)); // wet at 100% sits a few dB under the dry
+        l += wl * g; r += wr * g;
+    }
+};
+
+// ---------------------------------------------------------------------------------------------
+// Weight (v2.0): a tuned resonant bump in the low end (with the area under it tightened as the
+// focus goes up), plus harmonics of that band so the low end reads on small speakers.
+struct Weight {
+    Biquad bump[2], under[2], band[2], hHp[2], hLp[2];
+    float harm = 0.3f; bool underOn = false;
+    void reset() { for (int ch = 0; ch < 2; ++ch) { bump[ch].reset(); under[ch].reset(); band[ch].reset(); hHp[ch].reset(); hLp[ch].reset(); } }
+    void configure(double fs, float freq, float amountDb, float focus, float harmonics) {
+        const double f = clampf(freq, 20, 200), F = clampf(focus, 0, 1);
+        const double q = 0.7 + 3.3 * F;
+        underOn = F > 0.05;
+        harm = clampf(harmonics, 0, 1);
+        for (int ch = 0; ch < 2; ++ch) {
+            bump[ch].peak(fs, f, q, clampf(amountDb, 0, 12));
+            if (underOn) under[ch].highpass(fs, std::max(15.0, f * 0.6 * F), 0.6);
+            band[ch].lowpass(fs, f * 1.6, 0.707);
+            hHp[ch].highpass(fs, f * 1.8, 0.707);
+            hLp[ch].lowpass(fs, std::min(1200.0, fs * 0.45), 0.707);
+        }
+    }
+    inline void process(float& l, float& r) {
+        float* io[2] = {&l, &r};
+        for (int ch = 0; ch < 2; ++ch) {
+            float x = *io[ch];
+            const float lb = band[ch].process(x);
+            float y = bump[ch].process(x);
+            if (underOn) y = under[ch].process(y);
+            if (harm > 0.001f) {
+                const float u = lb * 4.f;
+                const float s = dm::tanh(u + 0.35f * u * u / (1.f + u * u)) * 0.25f;   // even + odd harmonics
+                const float h = hLp[ch].process(hHp[ch].process(s));
+                y += h * harm * 3.2f;
+            } else { hLp[ch].process(hHp[ch].process(0.f)); }
+            *io[ch] = y;
+        }
+    }
+};
+
+// ---------------------------------------------------------------------------------------------
 // Engine
 
 class Engine {
@@ -364,6 +620,7 @@ public:
         trAttackWin = (int)std::lround(0.002 * fs);
         for (int ch = 0; ch < 2; ++ch) trHP.highpass(fs, std::min(9000.0, fs * 0.42), 0.7071);
         shPre = (uint32_t)std::lround(0.001 * fs); // gain leads the audio by 1 ms
+        rv.setSampleRate(fs);
         shMode = -1; shChar = -1;
         firstBlock = true;
         reset();
@@ -396,6 +653,7 @@ public:
         gateEnv = 0; gateGain = 1; gateHoldCount = 0; gateOpen = false;
         agInPow = agOutPow = 1e-6f; agGain = 1;
         agApplied.v = 1;
+        rv.reset(); wt.reset();
     }
 
     // process stereo (in-place allowed)
@@ -437,6 +695,8 @@ public:
                     case kStGateWidth: if (on[kStGateWidth]) gateWidth(l, r); break;
                     case kStTransient: if (on[kStTransient] && trActive) { l *= trGain; r *= trGain; } break;
                     case kStShape: if (on[kStShape] && shActive) shapeApply(l, r); break;
+                    case kStReverb: if (on[kStReverb]) rv.process(l, r); break;
+                    case kStWeight: if (on[kStWeight]) wt.process(l, r); break;
                     }
                 }
                 // DC blocker
@@ -489,8 +749,9 @@ private:
 
     // cached per sub-block
     int era = 0;
-    bool on[kNumStages] = {true, true, true, true, true, true, true, true};
-    int curOrder[kNumStages] = {6, 7, 0, 1, 2, 3, 4, 5};
+    bool on[kNumStages] = {true, true, true, true, true, true, true, true, false, false};
+    int curOrder[kNumStages] = {6, 7, 0, 1, 2, 3, 9, 8, 4, 5};
+    DrumReverb rv; Weight wt; bool rvWasOn = false, wtWasOn = false;
     bool oversample = true, autoGain = true, bypass = false;
     float tgtInGain = 1, tgtOutGain = 1, tgtMix = 1;
     OnePoleSmooth smooth[6];
@@ -681,6 +942,12 @@ private:
         on[kStGateWidth] = P(pGwOn) > 0.5f;
         on[kStTransient] = P(pTrOn) > 0.5f;
         on[kStShape] = P(pShOn) > 0.5f;
+        on[kStReverb] = P(pRvOn) > 0.5f;
+        on[kStWeight] = P(pWtOn) > 0.5f;
+        // a module that switches on starts from silence (no stale tail from the last time it ran)
+        if (on[kStReverb] && !rvWasOn) rv.reset();
+        if (on[kStWeight] && !wtWasOn) wt.reset();
+        rvWasOn = on[kStReverb]; wtWasOn = on[kStWeight];
 
         if (firstBlock) {
             smooth[0].v = tgtInGain; smooth[1].v = tgtMix; smooth[2].v = tgtOutGain;
@@ -856,6 +1123,12 @@ private:
                 shAttScale = chr == 0 ? 0.75f : 1.0f; // natural / smooth push transients harder than classic
             }
         }
+
+        // ---------------- reverb / weight (v2.0)
+        if (on[kStReverb])
+            rv.configure((int)std::lround(clampf(P(pRvMode), 0, 2)), clampf(P(pRvDecay), 0.1f, 4), P(pRvPre), P(pRvTone), P(pRvDuck), P(pRvMix));
+        if (on[kStWeight])
+            wt.configure(fs, P(pWtFreq), P(pWtAmount), P(pWtFocus), P(pWtHarm));
 
         // ---------------- output filters: soft knee (Q 0.5), off at the extremes
         {

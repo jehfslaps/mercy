@@ -13,7 +13,7 @@ namespace mercy {
 struct Snapshot {
     bool valid = false;
     float v[kFirstOutputParam] = {};
-    int order[kNumStages] = {6, 7, 0, 1, 2, 3, 4, 5};
+    int order[kNumStages] = {6, 7, 0, 1, 2, 3, 9, 8, 4, 5};
 };
 
 // One second of input/output peak history for the live "specimen" waveform.

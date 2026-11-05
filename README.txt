@@ -1,5 +1,25 @@
 MERCY  -  drum processor
-version 1.9  -  Windows 64-bit (VST3 + CLAP)  -  Mac, Apple Silicon (VST3 + AU + CLAP)
+version 2.0  -  Windows 64-bit (VST3 + CLAP)  -  Mac, Apple Silicon (VST3 + AU + CLAP)
+
+
+WHAT'S NEW IN 2.0
+-----------------
+- REVERB. A new module on the advanced page, tuned for drums, with three
+  modes: plate (big, bright snare plate), room (short, punchy kit room)
+  and gated (a big tail that slams shut after each hit; "length" sets how
+  long it stays open). decay, pre-delay, tone (dark to bright), duck
+  (pushes the tail down under each hit so the groove stays clear) and mix.
+  The kick stays out of it (built-in low cut).
+- WEIGHT. A new low-end module: a resonant bump you tune to the kick or
+  808 (freq, amount), focus (wide and warm, or tight and resonant, which
+  also tightens the sub under it), and harmonics, so the low end still
+  comes through on phones and laptop speakers.
+- Both modules are off unless you turn them on, so your saved projects
+  and presets sound exactly like before. Clicking an era tab sets them up
+  for that era: fantasy = plate + a little weight, throne = room,
+  yeezus = gated + heavy weight. Both have their own presets (click the
+  module's name) and can be dragged anywhere in the chain like the others.
+- The advanced page now has ten modules in 5 columns. Same window size.
 
 
 WHAT'S NEW IN 1.9

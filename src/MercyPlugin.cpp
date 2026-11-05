@@ -28,7 +28,7 @@ protected:
 #endif
     const char* getMaker() const override { return "slapworx"; }
     const char* getLicense() const override { return "Proprietary"; }
-    uint32_t getVersion() const override { return d_version(1, 9, 0); }
+    uint32_t getVersion() const override { return d_version(2, 0, 0); }
 
     void initParameter(uint32_t index, Parameter& p) override
     {

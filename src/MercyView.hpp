@@ -180,7 +180,7 @@ static const int kCorner3[][2] = {{0, 0}, {1, 0}, {1, 1}};
 // value mapping / formatting
 
 static inline bool isLogParam(uint32_t p) {
-    return p == pSqAttack || p == pSqRelease || p == pSmpRate || p == pToneDepth || p == pGateHold || p == pHpf || p == pLpf;
+    return p == pSqAttack || p == pSqRelease || p == pSmpRate || p == pToneDepth || p == pGateHold || p == pHpf || p == pLpf || p == pRvDecay || p == pWtFreq;
 }
 static inline float toNorm(uint32_t p, float v) {
     const ParamInfo& pi = kParamInfo[p];
@@ -197,7 +197,8 @@ static inline float fromNorm(uint32_t p, float n) {
 }
 static inline bool isPercentParam(uint32_t p) {
     return p == pSquash || p == pDirt || p == pAge || p == pMix || p == pSmpCrunch || p == pPreLowEmph ||
-           p == pPreColor || p == pSqBlend || p == pClipAmount || p == pWidth || p == pTrDetect;
+           p == pPreColor || p == pSqBlend || p == pClipAmount || p == pWidth || p == pTrDetect ||
+           p == pRvTone || p == pRvDuck || p == pRvMix || p == pWtFocus || p == pWtHarm;
 }
 static std::string fmtValue(uint32_t p, float v) {
     char b[48];
@@ -219,6 +220,10 @@ static std::string fmtValue(uint32_t p, float v) {
     }
     else if (p == pShAttack || p == pShSustain || p == pShFocus) { const int iv = (int)std::lround(v); if (iv == 0) return "0%"; std::snprintf(b, sizeof b, "%+d%%", iv); }
     else if (p == pSmpBits) std::snprintf(b, sizeof b, "%.1f bit", v);
+    else if (p == pRvDecay) std::snprintf(b, sizeof b, "%.1f s", v);
+    else if (p == pRvPre) std::snprintf(b, sizeof b, "%.0f ms", v);
+    else if (p == pWtFreq) std::snprintf(b, sizeof b, "%.0f Hz", v);
+    else if (p == pWtAmount) std::snprintf(b, sizeof b, "%+.1f dB", v);
     else std::snprintf(b, sizeof b, "%.2f", v);
     return b;
 }
@@ -869,8 +874,10 @@ private:
             {pGate, pGateHold, pWidth, pMonoLows},
             {pTrEnv, pTrDetect},
             {pShMode, pShChar, pShAttack, pShSustain, pShFocus},
+            {pRvMode, pRvDecay, pRvPre, pRvTone, pRvDuck, pRvMix},
+            {pWtFreq, pWtAmount, pWtFocus, pWtHarm},
         };
-        static const int cnt[kNumStages] = {5, 4, 6, 5, 3, 4, 2, 5};
+        static const int cnt[kNumStages] = {5, 4, 6, 5, 3, 4, 2, 5, 6, 4};
         out = sp[st]; return cnt[st];
     }
     // first entry of every list is "default" (filled in at runtime: era defaults / parameter defaults)
@@ -916,6 +923,17 @@ private:
             {"snare crack", {1, 1, 50, 0, 20}}, {"fat snare", {1, 0, 10, 45, 30}},
             {"loop snap", {2, 1, 35, -15, 20}}, {"dry loop", {2, 1, 0, -50, 0}},
             {"thick loop", {2, 2, 0, 40, 0}}, {"soften harsh", {2, 2, -30, 0, -40}}};
+        //                        mode decay(s) pre(ms) tone duck mix
+        static const ModPreset rvb[] = {{"default", {}},
+            {"snare plate", {0, 1.6f, 20, .65f, .4f, .25f}}, {"big plate", {0, 3.2f, 30, .55f, .5f, .3f}},
+            {"dark plate", {0, 2.2f, 15, .25f, .4f, .25f}}, {"tight room", {1, .4f, 0, .5f, .2f, .2f}},
+            {"drum room", {1, .8f, 5, .55f, .3f, .25f}}, {"big room", {1, 1.6f, 10, .6f, .4f, .3f}},
+            {"gated snare", {2, .6f, 0, .5f, 0, .35f}}, {"industrial gate", {2, 1.1f, 0, .35f, 0, .45f}},
+            {"long gate", {2, 2.0f, 5, .6f, .1f, .4f}}};
+        //                        freq amount focus harmonics
+        static const ModPreset wgt[] = {{"default", {}},
+            {"kick weight", {55, 4, .5f, .25f}}, {"808 chest", {45, 6, .7f, .5f}}, {"sub bloom", {35, 5, .3f, .1f}},
+            {"tight thump", {70, 3, .85f, .2f}}, {"phone speaker", {55, 3, .5f, .9f}}, {"big body", {60, 8, .6f, .4f}}};
         switch (st) {
         case kStSampler: out = smp; return (int)(sizeof smp / sizeof smp[0]);
         case kStPreamp: out = pre; return (int)(sizeof pre / sizeof pre[0]);
@@ -924,6 +942,8 @@ private:
         case kStClip: out = clp; return (int)(sizeof clp / sizeof clp[0]);
         case kStGateWidth: out = gw; return (int)(sizeof gw / sizeof gw[0]);
         case kStTransient: out = tr; return (int)(sizeof tr / sizeof tr[0]);
+        case kStReverb: out = rvb; return (int)(sizeof rvb / sizeof rvb[0]);
+        case kStWeight: out = wgt; return (int)(sizeof wgt / sizeof wgt[0]);
         default: out = sh; return (int)(sizeof sh / sizeof sh[0]);
         }
     }
@@ -932,6 +952,7 @@ private:
         const uint32_t p = ps[k];
         if (item == 0) { // default: era starting point for era-driven modules, otherwise the parameter default
             if (p >= kFirstAdvParam && p <= kLastAdvParam) return kEraDefaults[(int)clampf(std::round(S.values[pEra]), 0, 2)][p - kFirstAdvParam];
+            if (p >= kFirstNewParam && p <= kLastNewParam) return kEraNew[(int)clampf(std::round(S.values[pEra]), 0, 2)][p - kFirstNewParam];
             return kParamInfo[p].def;
         }
         const ModPreset* mp; modPresets(st, mp);
@@ -948,6 +969,7 @@ private:
     int modOpen = -1, modHover = -1;
     float modX = 0, modY = 0, modH = 0;
     static constexpr float kModW = 220, kModRowH = 22;
+    static constexpr float kOptFont = 11.5f; // option rows on the advanced page (narrower columns since v2.0)
     void openModule(int st, int pos) {
         const ModPreset* mp; const int n = modPresets(st, mp);
         modOpen = st; modHover = -1;
@@ -975,7 +997,7 @@ private:
         host->hostRepaint();
     }
     void drawModulePopup(NanoVG& g) {
-        static const char* names[kNumStages] = {"sampler", "preamp", "squash", "tone", "clip", "gate/width", "transient", "shape"};
+        static const char* names[kNumStages] = {"sampler", "preamp", "squash", "tone", "clip", "gate/width", "transient", "shape", "reverb", "weight"};
         rc(g, 84.5f, 31, kW - 84.5f, kH - 31, alpha(T.dim, .8f));
         rc(g, modX, modY, kModW, modH, T.paper);
         ro(g, modX, modY, kModW, modH, T.ink, 1.5f);
@@ -1352,7 +1374,7 @@ private:
         { Ctl& c = add(tFilter, pLpf, 660, 502 - 12, 284, 24); c.a = 704; c.b = 880; c.c = 502; c.label = "lpf"; }
     }
 
-    static constexpr float kSecW = 210.f;
+    static constexpr float kSecW = 168.f;  // 5 columns x 2 rows (v2.0: ten modules)
     float secX(int pos) const { return secXs(pos); }
     float secY(int pos) const { return secYs(pos); }
 
@@ -1360,15 +1382,15 @@ private:
         for (int pos = 0; pos < kNumStages; ++pos) {
             const int st = S.order[pos];
             const float sx = secX(pos), sy = secY(pos);
-            { Ctl& c = add(tSectionHead, -1, sx + 8, sy + 8, 166, 30); c.id = st; c.a = (float)pos; }
-            static const uint32_t powerParam[kNumStages] = {pSmpOn, pPreOn, pSqOn, pToneOn, pClipOn, pGwOn, pTrOn, pShOn};
-            { Ctl& c = add(tSectionPower, (int)powerParam[st], sx + 180, sy + 10, 24, 22); c.id = st; c.a = sx; c.c = sy; }
+            { Ctl& c = add(tSectionHead, -1, sx + 8, sy + 8, kSecW - 40, 30); c.id = st; c.a = (float)pos; }
+            static const uint32_t powerParam[kNumStages] = {pSmpOn, pPreOn, pSqOn, pToneOn, pClipOn, pGwOn, pTrOn, pShOn, pRvOn, pWtOn};
+            { Ctl& c = add(tSectionPower, (int)powerParam[st], sx + kSecW - 32, sy + 10, 26, 22); c.id = st; c.a = sx; c.c = sy; }
             float ry = sy + 50;
             const float rs = 25.f;
             int rows = 0;
             auto mini = [&](uint32_t p, const char* label) {
-                Ctl& c = add(tMini, (int)p, sx + 10, ry - 12, 196, 24);
-                c.a = sx + 86; c.b = sx + 140; c.c = ry; c.label = label; c.id = (int)(sx + 198);
+                Ctl& c = add(tMini, (int)p, sx + 10, ry - 12, kSecW - 14, 24);
+                c.a = sx + 74; c.b = sx + 108; c.c = ry; c.label = label; c.id = (int)(sx + kSecW - 8);
                 ry += rs; ++rows;
             };
             auto rowLabel = [&](const char* label) {
@@ -1376,13 +1398,13 @@ private:
             };
             auto options = [&](uint32_t p, std::initializer_list<const char*> labels, const char* label, const char* suffix) {
                 float ox = sx + 14;
-                if (label) { rowLabel(label); ox = sx + 86; }
+                if (label) { rowLabel(label); ox = sx + 74; }
                 int idx = 0;
                 for (const char* l : labels) {
-                    const float w = tw(fMed, 12.5f, l);
+                    const float w = tw(fMed, kOptFont, l);
                     Ctl& c = add(tOption, (int)p, ox - 4, ry - 12, w + 8, 24);
-                    c.id = idx++; c.label = l; c.a = ox; c.c = ry;
-                    ox += w + 10;
+                    c.id = idx++; c.label = l; c.a = ox; c.b = kOptFont; c.c = ry;
+                    ox += w + 8;
                 }
                 if (suffix) { Ctl& lc = add(tButton, -1, 0, 0, 0, 0); lc.id = -1; lc.label = suffix; lc.a = ox - 4; lc.c = ry; }
                 ry += rs; ++rows;
@@ -1390,8 +1412,8 @@ private:
             auto onoff = [&](uint32_t p, const char* label) {
                 rowLabel(label);
                 for (int k = 0; k < 2; ++k) {
-                    const float ox = sx + 100 + k * 44;
-                    Ctl& c = add(tOnOff, (int)p, ox - 4, ry - 12, 40, 24);
+                    const float ox = sx + 80 + k * 40;
+                    Ctl& c = add(tOnOff, (int)p, ox - 4, ry - 12, 38, 24);
                     c.id = k; c.label = k ? "on" : "off"; c.a = ox; c.c = ry;
                 }
                 ry += rs; ++rows;
@@ -1420,10 +1442,10 @@ private:
             case kStClip: {
                 options(pClipMode, {"soft", "hard"}, nullptr, nullptr);
                 rowLabel("eq");
-                float ox = sx + 86;
+                float ox = sx + 74;
                 for (int k = 0; k < 2; ++k) {
                     const char* l = k ? "post" : "pre";
-                    const float w = tw(fMed, 12.5f, l);
+                    const float w = tw(fMed, kOptFont, l);
                     Ctl& c = add(tEqPos, -1, ox - 4, ry - 12, w + 8, 24);
                     c.id = k; c.label = l; c.a = ox; c.c = ry;
                     ox += w + 10;
@@ -1442,6 +1464,14 @@ private:
             case kStGateWidth:
                 mini(pGate, "gate"); mini(pGateHold, "hold"); mini(pWidth, "width");
                 onoff(pMonoLows, "mono lows");
+                break;
+            case kStReverb:
+                options(pRvMode, {"plate", "room", "gated"}, nullptr, nullptr);
+                mini(pRvDecay, "decay"); mini(pRvPre, "pre-delay"); mini(pRvTone, "tone");
+                mini(pRvDuck, "duck"); mini(pRvMix, "mix");
+                break;
+            case kStWeight:
+                mini(pWtFreq, "freq"); mini(pWtAmount, "amount"); mini(pWtFocus, "focus"); mini(pWtHarm, "harmonics");
                 break;
             }
             figY[pos] = sy + 50 + rows * 25 + 2;
@@ -1489,6 +1519,7 @@ private:
         if (e != cur) {
             applyingPreset = true;
             for (uint32_t i = 0; i < kNumAdvParams; ++i) setValueGesture(kFirstAdvParam + i, kEraDefaults[e][i]);
+            for (uint32_t i = 0; i < kNumNewParams; ++i) setValueGesture(kFirstNewParam + i, kEraNew[e][i]);
             setValueGesture(pEra, (float)e);
             applyingPreset = false;
             S.presetModified = true;
@@ -1705,7 +1736,7 @@ private:
             case bPresetName: openPresets(); break;
             case bBake: toggleBake(); break;
             case bTheme: S.dark = !S.dark; break;
-            case bResetOrder: { int o[kNumStages] = {6, 7, 0, 1, 2, 3, 4, 5}; setOrder(o); } break;
+            case bResetOrder: { int o[kNumStages]; for (int k = 0; k < kNumStages; ++k) o[k] = kDefaultOrder[k]; setOrder(o); } break;
             default: return false;
             }
             host->hostRepaint(); return true;
@@ -1750,8 +1781,8 @@ private:
     uint32_t lastScopePos = 0;
     float figY[kNumStages] = {};
 
-    static float secXs(int pos) { return 104.f + (pos % 4) * 210.f; }
-    static float secYs(int pos) { return 100.f + (pos / 4) * 214.f; }
+    static float secXs(int pos) { return 104.f + (pos % 5) * 168.f; }
+    static float secYs(int pos) { return 100.f + (pos / 5) * 214.f; }
 
     Color acc1() const { const int e = (int)std::lround(S.values[pEra]); return e == 1 ? T.mint : (e == 2 ? T.red : T.blue); }
     Color acc2() const { const int e = (int)std::lround(S.values[pEra]); return e == 1 ? T.pink : (e == 2 ? T.orange : T.violet); }
@@ -2001,7 +2032,7 @@ private:
         g.save(); g.translate(34, 590); g.rotate(-1.5707963f);
         txt(g, fMono, 10.5f, 0, 0, "drum processor", T.grey, 0, .14f);
         g.restore();
-        txt(g, fMono, 8.5f, 104, 14, "mercy / drum processor / v1.9", T.ink);
+        txt(g, fMono, 8.5f, 104, 14, "mercy / drum processor / v2.0", T.ink);
 #ifdef MERCY_TEASER
         scribble(g, 105, 15, 103 + measureText(fMono, 8.5f, "mercy", defaultSpacing(fMono)), 26, 3.2f, 12);
 #endif
@@ -2021,9 +2052,9 @@ private:
         // spec list
         txt(g, fMono, 8.5f, 500, 114, "spec.", T.ink2);
         static const char* eras[3] = {"fantasy", "throne", "yeezus"};
-        static const uint32_t powers[kNumStages] = {pSmpOn, pPreOn, pSqOn, pToneOn, pClipOn, pGwOn, pTrOn, pShOn};
+        static const uint32_t powers[kNumStages] = {pSmpOn, pPreOn, pSqOn, pToneOn, pClipOn, pGwOn, pTrOn, pShOn, pRvOn, pWtOn};
         int on = 0; for (uint32_t p : powers) on += S.values[p] > 0.5f;
-        char chain[24]; std::snprintf(chain, sizeof chain, "%d / 8 on", on);
+        char chain[24]; std::snprintf(chain, sizeof chain, "%d / %d on", on, (int)kNumStages);
         const bool busy = S.baker && S.baker->busy();
         int baked = 0; for (const auto& it : bakeItems) baked += it.state == Baker::kDone;
         char bk[24]; if (busy) std::snprintf(bk, sizeof bk, "baking"); else if (baked) std::snprintf(bk, sizeof bk, "%d baked", baked); else std::snprintf(bk, sizeof bk, "ready");
@@ -2115,43 +2146,43 @@ private:
     }
 
     void drawAdvancedArt(NanoVG& g) {
-        const float X0 = 104, Y0 = 100, CW = 210, RH = 214;
-        for (int k = 1; k < 4; ++k) ln(g, X0 + CW * k, Y0 + 6, X0 + CW * k, Y0 + RH * 2 - 6, T.hair);
-        ln(g, X0 + 6, Y0 + RH, X0 + CW * 4 - 6, Y0 + RH, T.hair);
-        for (int k = 1; k < 4; ++k) cross(g, X0 + CW * k, Y0 + RH, 5, T.ink);
+        const float X0 = 104, Y0 = 100, CW = kSecW, RH = 214, FW = kSecW - 28; // FW: figure width
+        for (int k = 1; k < 5; ++k) ln(g, X0 + CW * k, Y0 + 6, X0 + CW * k, Y0 + RH * 2 - 6, T.hair);
+        ln(g, X0 + 6, Y0 + RH, X0 + CW * 5 - 6, Y0 + RH, T.hair);
+        for (int k = 1; k < 5; ++k) cross(g, X0 + CW * k, Y0 + RH, 5, T.ink);
         char b[64];
         for (int pos = 0; pos < kNumStages; ++pos) {
             const int st = S.order[pos];
             const float x = secXs(pos), y = secYs(pos), fx = x + 14, fy = figY[pos];
-            const float hx = x + 112, hy = y + 20;
+            const float hx = x + kSecW - 70, hy = y + 20, HW = 40; // small figure beside the name
             switch (st) {
             case kStTransient: {
                 txt(g, fMono, 7.5f, fx, fy - 6, "fig. markers / gain", T.ink);
                 const Hit h[4] = {{.04f, .95f, .1f}, {.3f, .6f, .07f}, {.52f, .95f, .12f}, {.8f, .55f, .07f}};
-                staticBlob(g, fx, fy + 44, 182, 26, h, 4, 21, T.scan);
+                staticBlob(g, fx, fy + 44, FW, 26, h, 4, 21, T.scan);
                 const float mk[4] = {.04f, .3f, .52f, .8f};
-                for (float m : mk) { const float xx = fx + m * 182; ln(g, xx, fy + 8, xx, fy + 80, T.grey); rc(g, xx - 3, fy + 8, 6, 6, T.grey); }
+                for (float m : mk) { const float xx = fx + m * FW; ln(g, xx, fy + 8, xx, fy + 80, T.grey); rc(g, xx - 3, fy + 8, 6, 6, T.grey); }
                 const float env = S.values[pTrEnv];
                 if (env >= 99.95f) {
-                    ln(g, fx, fy + 16, fx + 182, fy + 16, T.red, 1.2f);
-                    txt(g, fMono, 7.5f, fx + 182, fy + 84, "100 = no fade", T.ink, 2);
+                    ln(g, fx, fy + 16, fx + FW, fy + 16, T.red, 1.2f);
+                    txt(g, fMono, 7.5f, fx + FW, fy + 84, "100 = no fade", T.ink, 2);
                 } else {
                     const float rate = 0.56f * std::exp(-0.03736f * env);
-                    float xs[183], ys[183];
-                    for (int i = 0; i <= 182; ++i) {
-                        const float t = i / 182.f;
+                    float xs[141], ys[141];
+                    for (int i = 0; i <= 140; ++i) {
+                        const float t = i / 140.f;
                         float last = mk[3] - 1.f;
                         for (float m : mk) if (m <= t) last = m;
                         const float db = rate * (t - last) * 700.f;
                         xs[i] = fx + i; ys[i] = fy + 16 + std::min(62.f, db / 48.f * 62.f);
                     }
-                    poly(g, xs, ys, 183, T.red, 1.2f);
+                    poly(g, xs, ys, 141, T.red, 1.2f);
                     std::snprintf(b, sizeof b, "%d \xC2\xB7 fade %.2f dB/ms", (int)std::lround(env), rate);
-                    txt(g, fMono, 7.5f, fx + 182, fy + 84, b, T.ink, 2);
+                    txt(g, fMono, 7.5f, fx + FW, fy + 84, b, T.ink, 2);
                 }
             } break;
             case kStPreamp: {
-                const float bx = fx, by = fy + 14, bs = 40;
+                const float bx = fx, by = fy + 14, bs = 36;
                 txt(g, fMono, 7.5f, fx, fy, "fig. drive curve", T.ink);
                 ro(g, bx, by, bs, bs, T.hair, 1);
                 ln(g, bx, by + bs / 2, bx + bs, by + bs / 2, T.hair2);
@@ -2161,11 +2192,12 @@ private:
                 for (int i = 0; i <= 40; ++i) { const float u = i / 40.f; xs[i] = bx + bs * u; ys[i] = by + bs / 2 - std::tanh((u - .5f) * 2 * k) / std::tanh(k) * bs * .42f; }
                 poly(g, xs, ys, 41, T.ink, 1.4f);
                 dot(g, bx + bs * .68f, by + bs / 2 - std::tanh(.36f * k) / std::tanh(k) * bs * .42f, 3, T.red);
-                rc(g, bx + 56, by + 4, 32, 32, acc2());
-                cells(g, bx + 88, by + 36, kDiag2, 2, 5, acc1());
+                rc(g, bx + 46, by + 4, 28, 28, acc2());
+                cells(g, bx + 74, by + 32, kDiag2, 2, 5, acc1());
                 static const char* fl[4] = {"console", "tube", "tape", "xfmr"};
-                std::snprintf(b, sizeof b, "%s / %+.0f dB", fl[(int)clampf(std::round(S.values[pPreFlavor]), 0, 3)], S.values[pPreDrive]);
-                txt(g, fMono, 7.5f, bx + 104, by + 16, b, T.ink);
+                txt(g, fMono, 7.5f, bx + 88, by + 8, fl[(int)clampf(std::round(S.values[pPreFlavor]), 0, 3)], T.ink);
+                std::snprintf(b, sizeof b, "%+.0f dB", S.values[pPreDrive]);
+                txt(g, fMono, 7.5f, bx + 88, by + 20, b, T.ink);
             } break;
             case kStClip: {
                 txt(g, fMono, 7.5f, fx, fy, "fig. ceiling", T.ink);
@@ -2177,12 +2209,12 @@ private:
                 for (int k = 0; k < 122; ++k) {
                     const float raw = A * drive * std::sin(k / 9.f);
                     const float o = hard ? clampf(raw, -c, c) : c * std::tanh(raw / c);
-                    xs[k] = fx + k * 1.5f; ys[k] = cy - o;
+                    xs[k] = fx + k * (FW / 121.f); ys[k] = cy - o;
                 }
-                dashLn(g, fx, cy - c, fx + 182, cy - c, T.red, 1, 2, 2);
-                dashLn(g, fx, cy + c, fx + 182, cy + c, T.red, 1, 2, 2);
+                dashLn(g, fx, cy - c, fx + FW, cy - c, T.red, 1, 2, 2);
+                dashLn(g, fx, cy + c, fx + FW, cy + c, T.red, 1, 2, 2);
                 poly(g, xs, ys, 122, T.ink, 1.4f);
-                txt(g, fMono, 7.5f, fx + 182, cy - 26, fmtValue(pClipCeiling, S.values[pClipCeiling]).c_str(), T.ink, 2);
+                txt(g, fMono, 7.5f, fx + FW, cy - 26, fmtValue(pClipCeiling, S.values[pClipCeiling]).c_str(), T.ink, 2);
             } break;
             case kStGateWidth: {
                 txt(g, fMono, 7.5f, fx, fy, "fig. stereo field", T.ink);
@@ -2197,28 +2229,28 @@ private:
                     g.circle(gx + (a + bb) / 1.41f, gy - (a - bb) / 1.41f, 1);
                 }
                 g.fillColor(T.ink); g.fill();
-                rc(g, gx + 40, gy - 17, 34, 34, T.mint);
+                rc(g, gx + 30, gy - 14, 28, 28, T.mint);
                 const Hit h[2] = {{.08f, .9f, .2f}, {.6f, .5f, .1f}};
-                staticBlob(g, gx + 43, gy, 28, 10, h, 2, 8, T.onMint);
-                txt(g, fMono, 7.5f, gx + 82, gy - 4, S.values[pMonoLows] > .5f ? "mono < 120 Hz" : "full stereo", T.ink);
+                staticBlob(g, gx + 33, gy, 22, 8, h, 2, 8, T.onMint);
+                txt(g, fMono, 7.5f, gx + 64, gy - 4, S.values[pMonoLows] > .5f ? "mono < 120 Hz" : "full stereo", T.ink);
             } break;
             case kStSampler: {
                 const float rate = clampf(S.values[pSmpRate], 4, 44.1f), bits = clampf(S.values[pSmpBits], 4, 16);
                 const float stepW = clampf(4.5f * std::sqrt(32.f / rate), 2.f, 10.f);
                 const float q = 2.2f * clampf(14.f / bits, .5f, 3.f);
                 std::vector<float> xs, ys;
-                for (float k = 0; k < 58; k += stepW) {
-                    const float v = std::round(std::sin(k / 9.f) * 6.6f / q) * q;
+                for (float k = 0; k < HW; k += stepW * 0.7f) {
+                    const float v = std::round(std::sin(k / 6.2f) * 6.6f / q) * q;
                     xs.push_back(hx + k); ys.push_back(hy - v);
-                    xs.push_back(hx + std::min(58.f, k + stepW)); ys.push_back(hy - v);
+                    xs.push_back(hx + std::min(HW, k + stepW * 0.7f)); ys.push_back(hy - v);
                 }
                 poly(g, xs.data(), ys.data(), (int)xs.size(), T.ink, 1.1f);
-                cells(g, x + 150, y + 192, kStairB, 6, 4, T.red);
+                cells(g, x + kSecW - 20, y + 192, kStairB, 6, 4, T.red);
             } break;
             case kStSquash: {
-                const float kt = (clampf(S.values[pSqThresh], -40, 0) + 40.f) / 40.f * 60.f, ratio = std::max(1.f, S.values[pSqRatio]);
+                const float kt = (clampf(S.values[pSqThresh], -40, 0) + 40.f) / 40.f * HW, ratio = std::max(1.f, S.values[pSqRatio]);
                 float xs[21], ys[21];
-                for (int i = 0; i <= 20; ++i) { const float k = i * 3.f; const float o = k < kt ? k : kt + (k - kt) / ratio; xs[i] = hx + k; ys[i] = hy + 7 - o * .5f; }
+                for (int i = 0; i <= 20; ++i) { const float k = i * HW / 20.f; const float o = k < kt ? k : kt + (k - kt) / ratio; xs[i] = hx + k; ys[i] = hy + 7 - o * .4f; }
                 poly(g, xs, ys, 21, T.ink, 1.2f);
                 dashLn(g, hx + kt, hy - 9, hx + kt, hy + 9, T.red, .8f, 1.5f, 1.5f);
             } break;
@@ -2233,16 +2265,56 @@ private:
                     const float bi = b10 ? S.values[pToneBiteAmt] / 12.f * 5.f / (1.f + std::exp(-(k - 50.f) / 2.f))
                                          : S.values[pToneBiteAmt] / 12.f * 5.f * std::exp(-((k - kb) / 8.f) * ((k - kb) / 8.f));
                     const float dr = std::min(8.f, std::max(0.f, k - kd) * .8f);
-                    xs[k] = hx + k; ys[k] = hy + 2 - lo - bi + dr;
+                    xs[k] = hx + k * (HW / 60.f); ys[k] = hy + 2 - lo - bi + dr;
                 }
                 poly(g, xs, ys, 61, T.ink, 1.2f);
             } break;
             case kStShape: {
                 const float a = S.values[pShAttack] / 100.f, s = S.values[pShSustain] / 100.f;
                 const float pk = hy - 8 - a * 4, t1 = hy - 1 - s * 4, t2 = hy + 4 - s * 3;
-                const float xs[5] = {hx, hx + 4, hx + 10, hx + 40, hx + 58}, ys[5] = {hy + 7, pk, t1, t2, hy + 7};
+                const float xs[5] = {hx, hx + 3, hx + 7, hx + 28, hx + HW}, ys[5] = {hy + 7, pk, t1, t2, hy + 7};
                 poly(g, xs, ys, 5, T.ink, 1.2f);
-                cross(g, hx + 4, pk, 3, T.red);
+                cross(g, hx + 3, pk, 3, T.red);
+            } break;
+            case kStReverb: {
+                // the tail's shape: plate = long smooth decay, room = early bounces + short tail, gated = flat then cut
+                const int m = (int)clampf(std::round(S.values[pRvMode]), 0, 2);
+                const float dec = clampf(S.values[pRvDecay], .1f, 4);
+                float xs[41], ys[41];
+                for (int i = 0; i <= 40; ++i) {
+                    const float t = i / 40.f; float a;
+                    if (m == 2) { const float len = clampf((.12f + .2f * dec) / 1.0f, .15f, .95f); a = t < .04f ? t / .04f : (t < len ? .62f : std::max(0.f, .62f - (t - len) * 30.f)); }
+                    else { const float k = m == 0 ? 1.6f / dec : 3.5f / dec; a = t < .03f ? t / .03f : std::exp(-(t - .03f) * k * 2.2f); }
+                    xs[i] = hx + t * HW; ys[i] = hy + 7 - a * 14;
+                }
+                poly(g, xs, ys, 41, T.ink, 1.2f);
+                if (m == 1) for (int k = 0; k < 4; ++k) ln(g, hx + 3 + k * 3.5f, hy + 7, hx + 3 + k * 3.5f, hy + 1 - (3 - k) * 2.5f, T.red, 1);
+                else cross(g, hx + 1.2f, hy - 7, 3, T.red);
+            } break;
+            case kStWeight: {
+                txt(g, fMono, 7.5f, fx, fy, "fig. low end", T.ink);
+                const float f0 = clampf(S.values[pWtFreq], 20, 200), amt = clampf(S.values[pWtAmount], 0, 12);
+                const float foc = clampf(S.values[pWtFocus], 0, 1), hm = clampf(S.values[pWtHarm], 0, 1);
+                const float by = fy + 46, top = fy + 16;
+                auto X = [&](float f) { return fx + std::log(f / 20.f) / std::log(20.f) * FW; };   // 20 Hz .. 400 Hz
+                ln(g, fx, by, fx + FW, by, T.hair);
+                float xs[71], ys[71];
+                const float bwo = .9f - .6f * foc; // bump width in octaves
+                for (int i = 0; i <= 70; ++i) {
+                    const float f = 20.f * std::pow(20.f, i / 70.f), o = std::log2(f / f0);
+                    float db = amt * std::exp(-(o / bwo) * (o / bwo));
+                    if (foc > .05f && f < f0 * .6f * foc) db -= std::min(14.f, 12.f * std::log2(f0 * .6f * foc / f));
+                    xs[i] = fx + i / 70.f * FW; ys[i] = by - 4 - db * 1.9f;
+                }
+                poly(g, xs, ys, 71, T.ink, 1.3f);
+                dot(g, X(f0), by - 4 - amt * 1.9f, 3, T.red);
+                for (int k = 2; k <= 4; ++k) {                     // harmonics: ticks at 2f, 3f, 4f
+                    const float hxk = X(f0 * k); if (hxk > fx + FW) break;
+                    const float hh = hm * (16.f - k * 3.f);
+                    if (hh > .5f) rc(g, hxk - 1, by - hh, 2, hh, acc1());
+                }
+                std::snprintf(b, sizeof b, "%.0f Hz / %+.0f dB", f0, amt);
+                txt(g, fMono, 7.5f, fx + FW, top - 16, b, T.ink, 2);
             } break;
             default: break;
             }
@@ -2254,8 +2326,8 @@ private:
 
     void drawReorderGhost(NanoVG& g) {
         const int target = sectionAt(dragX, dragY);
-        if (target >= 0) ro(g, secXs(target) + 4, secYs(target) + 4, 202, 206, T.red, 1.5f);
-        static const char* names[kNumStages] = {"sampler", "preamp", "squash", "tone", "clip", "gate/width", "transient", "shape"};
+        if (target >= 0) ro(g, secXs(target) + 4, secYs(target) + 4, kSecW - 8, 206, T.red, 1.5f);
+        static const char* names[kNumStages] = {"sampler", "preamp", "squash", "tone", "clip", "gate/width", "transient", "shape", "reverb", "weight"};
         txt(g, fSemi, 14, dragX + 10, dragY - 7, names[S.order[reorderFrom]], T.red);
     }
 
@@ -2331,6 +2403,7 @@ private:
             const float y = c.c, a = c.a, bb = c.b;
             const char* lbl = c.label.c_str();
             if (c.param == (int)pShFocus) { static const char* fl[3] = {"tight", "body", "presence"}; lbl = fl[(int)clampf(std::round(S.values[pShMode]), 0, 2)]; }
+            if (c.param == (int)pRvDecay && std::lround(S.values[pRvMode]) == 2) lbl = "length";
             txt(g, fMed, 12.5f, c.x + 4, y - 6, lbl, (hov || drag) ? T.ink : T.ink2);
             ln(g, a, y, bb, y, T.hair);
             ln(g, a, y - 3, a, y + 3, T.hair);
@@ -2344,7 +2417,7 @@ private:
             } else rc(g, a, y - 1, hx - a, 2, T.ink);
             rc(g, hx - 4.5f, y - 4.5f, 9, 9, (drag || edit) ? T.red : T.ink);
             if (edit) editBox(g, (float)c.id, y, 2);
-            else txt(g, fMono, 10, (float)c.id, y - 5, fmtValue(c.param, S.values[c.param]).c_str(), (hov || drag) ? T.ink : T.ink2, 2);
+            else txt(g, fMono, 9.5f, (float)c.id, y - 4.75f, fmtValue(c.param, S.values[c.param]).c_str(), (hov || drag) ? T.ink : T.ink2, 2);
         } break;
 
         case tFilter: {
@@ -2397,8 +2470,9 @@ private:
                 txt(g, fMed, 13.5f, sx + 14, 551, c.label.c_str(), sel ? T.ink : (hov ? T.ink2 : T.grey));
                 break;
             }
-            txt(g, fMed, 12.5f, c.a, c.c - 6, c.label.c_str(), sel ? T.red : (hov ? T.ink : T.grey));
-            if (sel) rc(g, c.a, c.c + 11, tw(fMed, 12.5f, c.label.c_str()), 1.5f, T.red);
+            const float fz = c.b > 0 ? c.b : 12.5f;
+            txt(g, fMed, fz, c.a, c.c - 6 + (12.5f - fz) * 0.5f, c.label.c_str(), sel ? T.red : (hov ? T.ink : T.grey));
+            if (sel) rc(g, c.a, c.c + 11, tw(fMed, fz, c.label.c_str()), 1.5f, T.red);
         } break;
 
         case tOnOff: {
@@ -2411,23 +2485,23 @@ private:
             int pt = 0, pc = 0;
             for (int k = 0; k < kNumStages; ++k) { if (S.order[k] == kStTone) pt = k; if (S.order[k] == kStClip) pc = k; }
             const bool sel = (c.id == 0) == (pt < pc);
-            txt(g, fMed, 12.5f, c.a, c.c - 6, c.label.c_str(), sel ? T.red : (hov ? T.ink : T.grey));
-            if (sel) rc(g, c.a, c.c + 11, tw(fMed, 12.5f, c.label.c_str()), 1.5f, T.red);
+            txt(g, fMed, kOptFont, c.a, c.c - 6 + (12.5f - kOptFont) * 0.5f, c.label.c_str(), sel ? T.red : (hov ? T.ink : T.grey));
+            if (sel) rc(g, c.a, c.c + 11, tw(fMed, kOptFont, c.label.c_str()), 1.5f, T.red);
         } break;
 
         case tSectionHead: {
-            static const char* names[kNumStages] = {"sampler", "preamp", "squash", "tone", "clip", "gate/width", "transient", "shape"};
+            static const char* names[kNumStages] = {"sampler", "preamp", "squash", "tone", "clip", "gate/width", "transient", "shape", "reverb", "weight"};
             const int pos = (int)c.a;
             const float x = secXs(pos), y = secYs(pos);
             const bool dim = reorderFrom == pos && reorderMoved;
             std::snprintf(b, sizeof b, "%02d", pos + 1);
-            txt(g, fMono, 9, x + 14, y + 16, b, T.ink);
-            txt(g, fSemi, 16, x + 34, y + 13, names[c.id], dim ? T.grey : (hov ? T.red : T.ink));
+            txt(g, fMono, 9, x + 12, y + 16, b, T.ink);
+            txt(g, fSemi, 15, x + 30, y + 13.5f, names[c.id], dim ? T.grey : (hov ? T.red : T.ink));
         } break;
 
         case tSectionPower: {
             const bool onv = S.values[c.param] > 0.5f;
-            if (onv) rc(g, c.a + 186, c.c + 15, 11, 11, T.red); else ro(g, c.a + 186, c.c + 15, 11, 11, hov ? T.ink : T.grey, 1.2f);
+            if (onv) rc(g, c.a + kSecW - 24, c.c + 15, 11, 11, T.red); else ro(g, c.a + kSecW - 24, c.c + 15, 11, 11, hov ? T.ink : T.grey, 1.2f);
         } break;
 
         case tButton: {
