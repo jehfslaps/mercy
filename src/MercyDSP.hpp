@@ -150,10 +150,10 @@ static const ParamInfo kParamInfo[kNumParams] = {
     {"rv_duck", "Verb Duck", "%", 0, 1, 0.3f, false, false},
     {"rv_mix", "Verb Mix", "%", 0, 1, 0.25f, false, false},
     {"wt_on", "Weight On", "", 0, 1, 0, true, true},
-    {"wt_center", "Weight Center", "", 0, 1, 0, true, false},      // 0 = 40 (20-80 Hz), 1 = 100 (50-200 Hz)
-    {"wt_freq2", "Weight Frequency", "", 0, 10, 4, false, false},  // 0..10 across the center's range
-    {"wt_amount2", "Weight Amount", "", 0, 10, 3, false, false},   // 0..10 = 0..+12 dB
-    {"wt_flat", "Weight Flat", "", 0, 1, 0, true, true},           // on: no tightening under the bump
+    {"wt_center", "Weight Center", "", 0, 2, 0, true, false},      // 0 = 40 (61-20 Hz), 1 = 100 (171-57 Hz), 2 = 200 (306-102 Hz)
+    {"wt_freq3", "Weight Frequency", "", 0, 10, 5, false, false},  // VOG frequency: 0 = top of the range, 10 = bottom
+    {"wt_amount3", "Weight Amount", "", 0, 10, 5, false, false},   // VOG amplitude: 0 = flat, 10 = full resonance
+    {"wt_flat", "Weight Flat", "", 0, 1, 0, true, true},           // on: same bump, lows under it left alone
     {"pre_thick", "Preamp Thick", "%", 0, 1, 0, false, false},
 
     {"meter_in", "Input Level", "dB", -60, 6, -60, false, false},
@@ -185,9 +185,9 @@ static constexpr uint32_t kLastNewParam = pPreThick;
 static constexpr uint32_t kNumNewParams = kLastNewParam - kFirstNewParam + 1;
 static const float kEraNew[3][kNumNewParams] = {
     // on mode decay pre  tone  duck  mix     on ctr freq amt flat   thick
-    {1, 0, 1.8f, 15, 0.6f, 0.4f, 0.22f,   1, 0, 4, 3, 0,          0.35f},   // FANTASY: plate + a little weight, thick
-    {1, 1, 0.7f, 5, 0.5f, 0.3f, 0.2f,     0, 0, 5, 3, 0,          0.25f},   // THRONE: room, a little thick
-    {1, 2, 0.6f, 0, 0.45f, 0.1f, 0.3f,    1, 0, 3, 6, 0,          0.f},     // YEEZUS: gated + heavy weight, crushed lows
+    {1, 0, 1.8f, 15, 0.6f, 0.4f, 0.22f,   1, 0, 6.9f, 2.1f, 0,    0.35f},   // FANTASY: plate + a little weight, thick
+    {1, 1, 0.7f, 5, 0.5f, 0.3f, 0.2f,     0, 0, 6.2f, 2.2f, 0,    0.25f},   // THRONE: room, a little thick
+    {1, 2, 0.6f, 0, 0.45f, 0.1f, 0.3f,    1, 0, 7.0f, 4.6f, 0,    0.f},     // YEEZUS: gated + heavy weight, crushed lows
 };
 
 // Stage ids for chain order
@@ -535,25 +535,93 @@ struct DrumReverb {
 };
 
 // ---------------------------------------------------------------------------------------------
-// Weight (v2.0): a bass resonance tool. A resonant bump (center 40: 20-80 Hz, center 100:
-// 50-200 Hz) with the area under it tightened (a resonant high-pass just below), or left alone ("flat").
+// Weight (v2.0): a bass resonance tool, measured against UAD's Little Labs Voice of God (21 renders,
+// sweeps deconvolved). It is one resonant second-order section,
+//     H(s) = (s^2 + k*(wp/Q)*s) / (s^2 + (wp/Q)*s + wp^2)
+// i.e. a resonant high-pass plus k of the normalized band-pass. The knobs map onto (fp, Q, k) through
+// tables taken from the measurements (monotone cubic between the 0 / 2.5 / 5 / 7.5 / 10 points). Like
+// the hardware, freq runs backwards (0 = top of the range) and center 200 is VOG's "both buttons" range.
+// Flat keeps the same bump (same poles, same peak) but leaves the lows under it alone.
+struct Pchip5 {
+    double y[5], d[5];
+    explicit Pchip5(const double v[5], bool logv) {
+        for (int i = 0; i < 5; ++i) y[i] = logv ? dm::log(v[i]) : v[i];
+        const double h = 2.5; double m[4];
+        for (int i = 0; i < 4; ++i) m[i] = (y[i + 1] - y[i]) / h;
+        for (int i = 1; i < 4; ++i)
+            d[i] = (m[i - 1] == 0 || m[i] == 0 || (m[i - 1] > 0) != (m[i] > 0)) ? 0 : 2.0 / (1.0 / m[i - 1] + 1.0 / m[i]);
+        auto edge = [](double m0, double m1) {
+            double e = (3 * m0 - m1) / 2;
+            if ((e > 0) != (m0 > 0) || e == 0) return 0.0;
+            if ((m0 > 0) != (m1 > 0) && std::fabs(e) > 3 * std::fabs(m0)) return 3 * m0;
+            return e;
+        };
+        d[0] = edge(m[0], m[1]); d[4] = edge(m[3], m[2]);
+    }
+    double at(double x) const {
+        x = x < 0 ? 0 : (x > 10 ? 10 : x);
+        int i = (int)(x / 2.5); if (i > 3) i = 3;
+        const double h = 2.5, t = (x - i * 2.5) / h, t2 = t * t, t3 = t2 * t;
+        return (2 * t3 - 3 * t2 + 1) * y[i] + (t3 - 2 * t2 + t) * h * d[i] + (-2 * t3 + 3 * t2) * y[i + 1] + (t3 - t2) * h * d[i + 1];
+    }
+};
+struct WeightModel {
+    // index: 0 = center 40, 1 = center 100 (center 200 uses 100's amplitude curves)
+    static const WeightModel& get() { static const WeightModel m; return m; }
+    Pchip5 g, h, q10[3], qa[2], ka[2], k10[2];
+    double cen[3] = {0.3566, 1.0, 1.788}, q10mid[3] = {5.865, 8.837, 8.08}, qaTop[2] = {5.865, 8.837}, k10mid[2] = {0.143, 0.149};
+    static const double* T(int i) {
+        static const double t[][5] = {
+            {171.27, 142.77, 114.28, 72.90, 57.14},   // 0 fp (Hz) vs freq, center 100, amplitude 10
+            {1.07, 1.047, 1.0215, 1.0065, 1.0},       // 1 fp factor vs amplitude
+            {4.413, 5.066, 5.865, 7.121, 7.338},      // 2 Q vs freq @ amp 10, center 40
+            {7.702, 8.334, 8.837, 8.604, 7.846},      // 3 Q vs freq @ amp 10, center 100
+            {8.08, 8.08, 8.08, 8.08, 8.08},           // 4 Q vs freq @ amp 10, center 200
+            {0.119, 1.182, 1.936, 4.266, 5.865},      // 5 Q vs amplitude @ freq 5, center 40
+            {0.050, 0.498, 0.992, 3.452, 8.837},      // 6 Q vs amplitude @ freq 5, center 100
+            {0.978, 0.810, 0.693, 0.363, 0.143},      // 7 k vs amplitude, center 40
+            {0.978, 0.945, 0.896, 0.648, 0.149},      // 8 k vs amplitude, center 100
+            {0.127, 0.133, 0.143, 0.173, 0.199},      // 9 k vs freq @ amp 10, center 40
+            {0.120, 0.132, 0.149, 0.186, 0.204}};     // 10 k vs freq @ amp 10, center 100
+        return t[i];
+    }
+    WeightModel() : g(T(0), true), h(T(1), true), q10{Pchip5(T(2), true), Pchip5(T(3), true), Pchip5(T(4), true)},
+                    qa{Pchip5(T(5), true), Pchip5(T(6), true)}, ka{Pchip5(T(7), false), Pchip5(T(8), false)},
+                    k10{Pchip5(T(9), false), Pchip5(T(10), false)} {}
+    static int centerIndex(float c) { return c < 0.5f ? 0 : (c < 1.5f ? 1 : 2); }
+    // knobs -> resonance frequency (Hz), Q, band-pass share k
+    void params(float center, float freq, float amp, double& fp, double& Q, double& k) const {
+        const int c = centerIndex(center), cc = c == 2 ? 1 : c;
+        fp = cen[c] * dm::exp(g.at(freq)) * dm::exp(h.at(amp));
+        Q = dm::exp(qa[cc].at(amp)) / qaTop[cc] * dm::exp(q10[c].at(freq));
+        k = 1.0 - (1.0 - ka[cc].at(amp)) * (1.0 - k10[cc].at(freq)) / (1.0 - k10mid[cc]);
+    }
+    // analog magnitude (dB) at f, for the panel figure
+    static double magDb(double f, double fp, double Q, double k, bool flat) {
+        const double w = f / fp, re = 1 - w * w, im = w / Q;                       // denominator, s = j w (normalized)
+        const double nre = flat ? 1 - w * w : -w * w, nim = (flat ? std::sqrt(Q * Q + k * k) : k) * w / Q;
+        return 10 * std::log10((nre * nre + nim * nim) / (re * re + im * im));
+    }
+};
+
 struct Weight {
-    Biquad bump[2], under[2];
-    bool flat = false; float olHold = 0, olRel = 0;
-    void reset() { for (int ch = 0; ch < 2; ++ch) { bump[ch].reset(); under[ch].reset(); } olHold = 0; }
-    static double freqOf(float center, float k) { return (center > 0.5f ? 50.0 : 20.0) * dm::pow(4.0, (double)clampf(k, 0, 10) / 10.0); }
-    void configure(double fs, float center, float k, float amount, float flatOn) {
-        const double f = freqOf(center, k), db = clampf(amount, 0, 10) * 1.2;
-        flat = flatOn > 0.5f;
+    Biquad bq[2];
+    float olHold = 0, olRel = 0;
+    void reset() { for (int ch = 0; ch < 2; ++ch) bq[ch].reset(); olHold = 0; }
+    void configure(double fs, float center, float freq, float amp, float flatOn) {
+        double fp, Q, k; WeightModel::get().params(center, freq, amp, fp, Q, k);
+        fp = std::min(fp, fs * 0.45);
+        const double wp = 2 * kPi * fp, K = wp / dm::tan(wp / (2 * fs)), KK = K * K, w2 = wp * wp, d1 = wp / Q;
+        const bool flat = flatOn > 0.5f;
+        const double n1 = (flat ? std::sqrt(Q * Q + k * k) : k) * d1, n0 = flat ? w2 : 0.0;
         for (int ch = 0; ch < 2; ++ch) {
-            bump[ch].peak(fs, f, 1.4, db);
-            if (!flat) under[ch].highpass(fs, f * 0.7, 0.75);
+            bq[ch].setNorm(KK + n1 * K + n0, 2 * n0 - 2 * KK, KK - n1 * K + n0, KK + d1 * K + w2, 2 * w2 - 2 * KK, KK - d1 * K + w2);
+            bq[ch].active = true;
         }
         olRel = (float)(0.3 * fs);
     }
     inline void process(float& l, float& r) {
-        l = bump[0].process(l); r = bump[1].process(r);
-        if (!flat) { l = under[0].process(l); r = under[1].process(r); }
+        l = bq[0].process(l); r = bq[1].process(r);
         if (std::fabs(l) > 1.f || std::fabs(r) > 1.f) olHold = olRel; else if (olHold > 0) olHold -= 1.f;
     }
 };

@@ -938,9 +938,9 @@ private:
             {"long gate", {2, 2.0f, 5, .6f, .1f, .4f}}};
         //                        center freq amount flat
         static const ModPreset wgt[] = {{"default", {}},
-            {"kick weight", {0, 6, 4, 0}}, {"808 chest", {0, 4, 6, 0}}, {"sub bloom", {0, 2, 5, 1}},
-            {"kick body", {1, 2, 4, 0}}, {"tight thump", {1, 4, 3, 0}}, {"snare body", {1, 9, 3, 1}},
-            {"big weight", {0, 5, 8, 0}}};
+            {"kick weight", {0, 5.1f, 3.4f, 0}}, {"808 chest", {0, 6.3f, 4.9f, 0}}, {"sub bloom", {0, 7.7f, 3.6f, 1}},
+            {"kick body", {1, 9.5f, 6, 0}}, {"tight thump", {1, 7.4f, 5.4f, 0}}, {"snare body", {1, 0, 5.8f, 1}},
+            {"big weight", {0, 5.4f, 6.2f, 0}}};
         switch (st) {
         case kStSampler: out = smp; return (int)(sizeof smp / sizeof smp[0]);
         case kStPreamp: out = pre; return (int)(sizeof pre / sizeof pre[0]);
@@ -1478,7 +1478,7 @@ private:
                 mini(pRvDuck, "duck"); mini(pRvMix, "mix");
                 break;
             case kStWeight:
-                options(pWtCenter, {"40", "100"}, "center", nullptr);
+                options(pWtCenter, {"40", "100", "200"}, "center", nullptr);
                 mini(pWtFreq, "freq"); mini(pWtAmount, "amount");
                 onoff(pWtFlat, "flat");
                 break;
@@ -2318,20 +2318,22 @@ private:
                 if (ol) dot(g, hx + 30, hy, 3.5f, T.red); else ro(g, hx + 26.5f, hy - 3.5f, 7, 7, T.grey, 1);
                 txt(g, fMono, 7.5f, fx, fy, "fig. low end", T.ink);
                 const bool flat = S.values[pWtFlat] > .5f;
-                const float f0 = (float)Weight::freqOf(S.values[pWtCenter], S.values[pWtFreq]), amt = clampf(S.values[pWtAmount], 0, 10) * 1.2f;
+                double fp, Q, kk; WeightModel::get().params(S.values[pWtCenter], S.values[pWtFreq], S.values[pWtAmount], fp, Q, kk);
                 const float by = fy + 46, top = fy + 16;
-                auto X = [&](float f) { return fx + std::log(f / 20.f) / std::log(20.f) * FW; };   // 20 Hz .. 400 Hz
                 ln(g, fx, by, fx + FW, by, T.hair);
-                float xs[71], ys[71];
-                for (int i = 0; i <= 70; ++i) {
-                    const float f = 20.f * std::pow(20.f, i / 70.f), o = std::log2(f / f0);
-                    float db = amt * std::exp(-(o / .55f) * (o / .55f));
-                    if (!flat && f < f0 * .7f) db -= std::min(14.f, 12.f * std::log2(f0 * .7f / f));
-                    xs[i] = fx + i / 70.f * FW; ys[i] = by - 4 - db * 1.9f;
+                float xs[71], ys[71], pkF = 20, pkDb = -99, pkX = fx, pkY = by;
+                for (int i = 0; i <= 70; ++i) {                                                   // 20 Hz .. 400 Hz
+                    const float f = 20.f * std::pow(20.f, i / 70.f);
+                    const float db = std::max(-14.f, (float)WeightModel::magDb(f, fp, Q, kk, flat));
+                    xs[i] = fx + i / 70.f * FW; ys[i] = by - 4 - std::min(db, 20.f) * 1.3f;
+                }
+                for (int i = 0; i <= 400; ++i) {                                                  // the peak, finer
+                    const float f = 20.f * std::pow(20.f, i / 400.f), db = (float)WeightModel::magDb(f, fp, Q, kk, flat);
+                    if (db > pkDb) { pkDb = db; pkF = f; pkX = fx + i / 400.f * FW; pkY = by - 4 - std::min(db, 20.f) * 1.3f; }
                 }
                 poly(g, xs, ys, 71, T.ink, 1.3f);
-                dot(g, X(f0), by - 4 - amt * 1.9f, 3, T.red);
-                std::snprintf(b, sizeof b, "%.0f Hz / %+.0f dB", f0, amt);
+                dot(g, pkX, pkY, 3, T.red);
+                std::snprintf(b, sizeof b, "%.0f Hz / %+.0f dB", pkF, pkDb);
                 txt(g, fMono, 7.5f, fx + FW, top - 16, b, T.ink, 2);
             } break;
             default: break;

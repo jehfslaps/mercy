@@ -43,6 +43,16 @@ Shape stage (transient shaper):
   Gains are computed on the un-delayed input and applied to the delayed audio
   1 ms early (+ half the detector smoothing), using the existing 5 ms look-ahead.
 
+Weight stage (v2.0) - measured from UAD Little Labs Voice of God (21 FL Studio renders of a
+test kit: click, two 10 s log sweeps, drum loop; sweeps deconvolved):
+  one 2nd-order section H(s) = (s^2 + k*(wp/Q)*s) / (s^2 + (wp/Q)*s + wp^2), bilinear, prewarped at fp.
+  fp: center scale (40: 0.3566, 100: 1, 200: 1.788) x table vs freq (171.27 .. 57.14 Hz, freq runs
+  backwards like VOG) x small amplitude factor. Q and k: tables vs amplitude (@ freq 5) and vs freq
+  (@ amplitude 10), monotone cubic (PCHIP) between the 0/2.5/5/7.5/10 points. Fit: within 0.2 dB of every
+  measurement; the plugin code nulls 30-51 dB under VOG on the loop. Flat: same poles, numerator
+  s^2 + sqrt(Q^2+k^2)(wp/Q)s + wp^2 (same peak, lows untouched). Params wt_freq3 / wt_amount3
+  (renamed from wt_freq2 / wt_amount2 because the meaning changed).
+
 Output filters: RBJ high/low-pass, Q 0.5 (soft knee), after auto gain, before mix.
 
 Chain order state: 8 digits (default "67012345"). Older 6- and 7-digit orders

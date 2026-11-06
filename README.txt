@@ -10,11 +10,15 @@ WHAT'S NEW IN 2.0
   long it stays open). decay, pre-delay, tone (dark to bright), duck
   (pushes the tail down under each hit so the groove stays clear) and mix.
   The kick stays out of it (built-in low cut).
-- WEIGHT. A bass resonance tool: center 40 (20-80 Hz, subs and 808s) or
-  100 (50-200 Hz, kick body), freq (0-10 across that range), amount
-  (0-10, up to +12 dB) and flat. Flat off = the bump comes with a tight
-  cut under it (bigger and more focused); flat on = just the bump. The
-  little "ol" light by the name flashes red when weight pushes past 0 dB.
+- WEIGHT. A bass resonance tool, measured against UAD's Little Labs
+  Voice of God and matched to it: same knobs, same numbers. Center 40
+  (61-20 Hz, subs and 808s), 100 (171-57 Hz, kick body) or 200
+  (306-102 Hz, VOG's "both buttons"). Freq runs like VOG's: 0 is the top
+  of the range, 10 the bottom. Amount is VOG's amplitude: 0 = flat,
+  10 = full resonance (up to about +18 dB) with a steep cut under it.
+  Flat on = the same bump with the lows under it left alone (VOG can't do
+  this; its flat is a bypass). The little "ol" light by the name flashes
+  red when weight pushes past 0 dB.
 - THICK (in the preamp). Saturation flattens the low end first and the
   drums lose weight. Turn thick up and the lows go around the saturation
   (the split rises from 60 to 250 Hz as you turn it), so the grit stays
