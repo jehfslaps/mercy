@@ -8,6 +8,7 @@ struct PresetOverride { uint32_t p; float v; };
 struct FactoryPreset {
     const char* name; int era; float squash, dirt, age, mix;
     PresetOverride ov[16]; int nov;
+    const char* order;   // chain order (nullptr = the default order)
 };
 // overrides are applied on top of the era's advanced defaults
 static const FactoryPreset kFactory[] = {
@@ -69,8 +70,37 @@ static const FactoryPreset kFactory[] = {
     {"crushed but heavy", 2, .7f, .9f, .4f, 1, {{pPreThick, .8f}, {pPreDrive, 18}, WT(0, 4, 4, 0)}, 7},
 #undef RV
 #undef WT
+    // ---- 2.0: built around the chain order (verb early so the transient, squash and gate work on its tail, etc.)
+    {"chopped verb", 0, 0.5f, 0.5f, 0.3f, 1, {{pRvOn, 1}, {pRvMode, 0}, {pRvDecay, 2.4f}, {pRvPre, 10}, {pRvTone, 0.6f}, {pRvDuck, 0}, {pRvMix, 0.4f}, {pTrEnv, 40}, {pTrDetect, 0.6f}, {pOutput, -3.0f}}, 10, "8670123945"},
+    {"pumping room", 1, 0.75f, 0.5f, 0.3f, 1, {{pRvOn, 1}, {pRvMode, 1}, {pRvDecay, 1.2f}, {pRvPre, 5}, {pRvTone, 0.55f}, {pRvDuck, 0}, {pRvMix, 0.45f}, {pSqRatio, 12}, {pSqAttack, 3}, {pSqRelease, 250}, {pSqBlend, 1}, {pOutput, -1.0f}}, 12, "8670123945"},
+    {"gate eats the plate", 2, 0.6f, 0.6f, 0.3f, 1, {{pRvOn, 1}, {pRvMode, 0}, {pRvDecay, 2.2f}, {pRvPre, 0}, {pRvTone, 0.55f}, {pRvDuck, 0}, {pRvMix, 0.45f}, {pGate, -28}, {pGateHold, 60}}, 9, "8670123945"},
+    {"crushed plate", 2, 0.6f, 0.8f, 0.35f, 1, {{pRvOn, 1}, {pRvMode, 0}, {pRvDecay, 1.8f}, {pRvPre, 10}, {pRvTone, 0.6f}, {pRvDuck, 0.1f}, {pRvMix, 0.4f}, {pPreFlavor, 3}, {pPreDrive, 18}, {pClipMode, 1}, {pClipAmount, 0.7f}}, 11, "8670123945"},
+    {"sampled room", 0, 0.5f, 0.5f, 0.7f, 1, {{pRvOn, 1}, {pRvMode, 1}, {pRvDecay, 1}, {pRvPre, 5}, {pRvTone, 0.6f}, {pRvDuck, 0.1f}, {pRvMix, 0.4f}, {pSmpMode, 0}, {pSmpRate, 26.04f}, {pSmpBits, 12}, {pSmpCrunch, 0.6f}}, 11, "8670123945"},
+    {"snap verb", 0, 0.5f, 0.5f, 0.3f, 1, {{pRvOn, 1}, {pRvMode, 0}, {pRvDecay, 1.6f}, {pRvPre, 10}, {pRvTone, 0.6f}, {pRvDuck, 0}, {pRvMix, 0.4f}, {pShMode, 1}, {pShChar, 1}, {pShAttack, 50}, {pShSustain, -45}, {pOutput, -0.9f}}, 12, "8670123945"},
+    {"gated toms 2", 2, 0.6f, 0.55f, 0.25f, 1, {{pRvOn, 1}, {pRvMode, 2}, {pRvDecay, 1.6f}, {pRvPre, 5}, {pRvTone, 0.6f}, {pRvDuck, 0}, {pRvMix, 0.45f}, {pShMode, 2}, {pShChar, 2}, {pShSustain, 40}, {pSqRatio, 8}, {pOutput, -0.6f}}, 12, "8670123945"},
+    {"room into weight", 1, 0.55f, 0.5f, 0.3f, 1, {{pRvOn, 1}, {pRvMode, 1}, {pRvDecay, 0.9f}, {pRvPre, 5}, {pRvTone, 0.5f}, {pRvDuck, 0.2f}, {pRvMix, 0.35f}, {pWtOn, 1}, {pWtCenter, 1}, {pWtFreq, 3}, {pWtAmount, 5}, {pWtFlat, 0}}, 12, "8967012345"},
+    {"drowned break", 0, 0.8f, 0.5f, 0.3f, 1, {{pRvOn, 1}, {pRvMode, 0}, {pRvDecay, 3.5f}, {pRvPre, 20}, {pRvTone, 0.55f}, {pRvDuck, 0}, {pRvMix, 0.55f}, {pSqBlend, 0.9f}, {pTrEnv, 60}, {pOutput, -5.4f}}, 10, "8670123945"},
+    {"verb through tape", 0, 0.5f, 0.6f, 0.45f, 1, {{pRvOn, 1}, {pRvMode, 1}, {pRvDecay, 0.8f}, {pRvPre, 0}, {pRvTone, 0.5f}, {pRvDuck, 0.2f}, {pRvMix, 0.35f}, {pPreFlavor, 2}, {pPreDrive, 12}, {pPreThick, 0.4f}, {pSmpMode, 1}}, 11, "8670123945"},
+    {"clip first", 2, 0.6f, 0.6f, 0.3f, 1, {{pClipMode, 0}, {pClipAmount, 0.6f}, {pSqRatio, 6}, {pSqAttack, 10}, {pOutput, -4.0f}}, 5, "4670123985"},
+    {"resampled break", 0, 0.5f, 0.5f, 0.7f, 1, {{pSmpMode, 0}, {pSmpRate, 26.04f}, {pSmpBits, 12}, {pSmpCrunch, 0.5f}}, 4, "6712398450"},
+    {"bright grit", 1, 0.55f, 0.7f, 0.3f, 1, {{pToneBiteFreq, 1}, {pToneBiteAmt, 5}, {pClipAmount, 0.6f}}, 3, "6701298435"},
+    {"saturated weight", 0, 0.5f, 0.6f, 0.3f, 1, {{pWtOn, 1}, {pWtCenter, 0}, {pWtFreq, 4}, {pWtAmount, 6}, {pWtFlat, 0}, {pPreFlavor, 1}, {pPreDrive, 14}}, 7, "6709123845"},
+    {"clean then crush", 2, 0.6f, 0.8f, 0.35f, 1, {{pGate, -40}, {pGateHold, 50}, {pClipAmount, 0.6f}}, 3, "5670123984"},
+    {"chop everything", 0, 0.5f, 0.5f, 0.3f, 1, {{pRvOn, 1}, {pRvMode, 0}, {pRvDecay, 1.8f}, {pRvPre, 10}, {pRvTone, 0.6f}, {pRvDuck, 0.2f}, {pRvMix, 0.3f}, {pTrEnv, 35}, {pTrDetect, 0.7f}, {pOutput, -5.2f}}, 10, "7012398456"},
+    {"squash first", 1, 0.8f, 0.5f, 0.3f, 1, {{pSqRatio, 10}, {pSqAttack, 1}, {pShMode, 1}, {pShAttack, 40}}, 4, "2670139845"},
+    {"tape at the end", 0, 0.5f, 0.55f, 0.3f, 1, {{pPreFlavor, 2}, {pPreDrive, 10}, {pPreThick, 0.3f}}, 3, "6702398451"},
+    {"dirty room", 2, 0.55f, 0.75f, 0.3f, 1, {{pRvOn, 1}, {pRvMode, 1}, {pRvDecay, 0.9f}, {pRvPre, 5}, {pRvTone, 0.55f}, {pRvDuck, 0.2f}, {pRvMix, 0.35f}, {pPreFlavor, 3}, {pPreDrive, 16}}, 9, "6708123945"},
+    {"lofi plate", 0, 0.45f, 0.45f, 0.6f, 1, {{pRvOn, 1}, {pRvMode, 0}, {pRvDecay, 2.2f}, {pRvPre, 15}, {pRvTone, 0.5f}, {pRvDuck, 0.3f}, {pRvMix, 0.3f}, {pSmpMode, 0}, {pSmpBits, 12}, {pSmpRate, 26.04f}}, 10, "6712398045"},
+    {"shape after squash", 1, 0.75f, 0.5f, 0.3f, 1, {{pShMode, 2}, {pShAttack, 45}, {pShSustain, -20}, {pSqRatio, 12}}, 4, "6012739845"},
+    {"weight last", 2, 0.6f, 0.7f, 0.3f, 1, {{pWtOn, 1}, {pWtCenter, 0}, {pWtFreq, 3}, {pWtAmount, 6}, {pWtFlat, 1}, {pClipAmount, 0.7f}, {pOutput, -2}}, 7, "6701238459"},
+    {"gated room first", 1, 0.55f, 0.5f, 0.3f, 1, {{pRvOn, 1}, {pRvMode, 1}, {pRvDecay, 1.4f}, {pRvPre, 0}, {pRvTone, 0.5f}, {pRvDuck, 0}, {pRvMix, 0.5f}, {pGate, -32}, {pGateHold, 40}}, 9, "8567012394"},
+    {"verb last wide", 0, 0.5f, 0.5f, 0.3f, 1, {{pRvOn, 1}, {pRvMode, 0}, {pRvDecay, 2}, {pRvPre, 20}, {pRvTone, 0.65f}, {pRvDuck, 0.4f}, {pRvMix, 0.25f}, {pWidth, 1.3f}, {pOutput, -1.2f}}, 9, "6701239458"},
+    {"industrial chain", 2, 0.6f, 0.85f, 0.4f, 1, {{pGate, -30}, {pClipMode, 1}, {pClipAmount, 0.7f}, {pSmpMode, 2}, {pSmpRate, 32}, {pSmpBits, 14}, {pOutput, -2.3f}}, 7, "5467123980"},
 };
-static constexpr int kNumFactoryV1 = 34;   // the 1.x presets keep their places; 2.0's come after (and show first)
 static constexpr int kNumFactory = sizeof(kFactory) / sizeof(kFactory[0]);
+static constexpr int kNumFactoryV1 = 34;   // the 1.x presets keep their places (projects store the index); 2.0's come after
+// the order the browser and the < > arrows show them in: "nothing" and "default break" first, the rest shuffled (fixed)
+static const int kPresetDisplay[] = {34, 0, 73, 53, 46, 11, 68, 56, 44, 57, 39, 62, 35, 59, 43, 9, 27, 24, 52, 49, 50, 4, 75, 18, 40, 13, 3, 51, 15, 72, 12, 47, 28, 2, 20, 10, 30, 38, 61, 36, 37, 63, 22, 5, 74, 33, 25, 48, 23, 17, 26, 71, 21, 69, 32, 45, 60, 65, 70, 7, 54, 19, 8, 6, 41, 1, 31, 58, 64, 55, 29, 14, 67, 66, 42, 16};
+static_assert(sizeof(kPresetDisplay) / sizeof(kPresetDisplay[0]) == kNumFactory, "every factory preset needs a place in kPresetDisplay");
 
 } // namespace mercy

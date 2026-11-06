@@ -22,9 +22,14 @@ WHAT'S NEW IN 2.0
 - NOTHING. A preset with every module off: no processing at all (it nulls
   against bypass sample for sample). Start from it to build a sound from
   scratch.
-- 17 new presets built on verb, weight and thick. They're listed first in
-  the preset browser, under "new in 2.0". The 34 earlier presets are all
-  still there and sound the same.
+- 41 new presets: 16 built on verb, weight and thick, and 25 built around
+  the chain order (presets can now set the order of the modules: verb
+  first so the transient trim chops its tail, squash pumps it or the gate
+  cuts it; clip before squash; the sampler last so everything gets
+  crunched; and more). The 34 earlier presets are all still there and
+  sound the same. Everything is in one list, shuffled, with "nothing" and
+  "default break" at the top. "reset order" on the advanced page puts the
+  chain back to the default.
 - Verb, weight and thick are off unless you turn them on, so your saved
   projects and presets sound exactly like before. Clicking an era tab sets
   them up for that era: fantasy = plate + a little weight + thick,

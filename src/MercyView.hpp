@@ -595,10 +595,8 @@ private:
     struct PopRow { int header; int a, b; };
     std::vector<PopRow> popRows() const {
         std::vector<PopRow> rows;
-        rows.push_back({-3, -1, -1});     // new in 2.0 (nothing + verb / weight / thick)
-        for (int i = kNumFactoryV1; i < kNumFactory; i += 2) rows.push_back({0, i, i + 1 < kNumFactory ? i + 1 : -1});
-        rows.push_back({-1, -1, -1});
-        for (int i = 0; i < kNumFactoryV1; i += 2) rows.push_back({0, i, i + 1 < kNumFactoryV1 ? i + 1 : -1});
+        rows.push_back({-1, -1, -1});     // one factory list, in display order
+        for (int i = 0; i < kNumFactory; i += 2) rows.push_back({0, kPresetDisplay[i], i + 1 < kNumFactory ? kPresetDisplay[i + 1] : -1});
         if (!userPresets.empty()) {
             rows.push_back({-2, -1, -1});
             const int n = (int)userPresets.size();
@@ -721,7 +719,7 @@ private:
             const float y = ly + k * kPopRowH;
             const PopRow& row = rows[r];
             if (row.header != 0) {
-                const char* h = row.header == -1 ? "factory" : (row.header == -3 ? "new in 2.0" : "user");
+                const char* h = row.header == -1 ? "factory" : "user";
                 txt(g, fMono, 8.5f, lx, y - 5, h, T.grey);
                 ln(g, lx + tw(fMono, 8.5f, h) + 10, y, lx + cw * 2 - 12, y, T.hair2);
                 continue;
@@ -734,7 +732,7 @@ private:
                 const bool pend = idx == pendingDelete;
                 if (hov || pend || (ctxOpen && idx == ctxIdx)) rc(g, x - 6, y - kPopRowH / 2 + 1, cw - 10, kPopRowH - 2, T.hoverRow);
                 if (cur) rc(g, x, y - 3.5f, 7, 7, T.red);
-                std::snprintf(b, sizeof b, "%02d", idx + 1);
+                std::snprintf(b, sizeof b, "%02d", displayPos(idx) + 1);
                 txt(g, fMono, 9, x + 14, y - 5, b, T.grey);
                 const float nameMax = pend ? cw - 40 - 96 : (user ? cw - 40 - 34 : cw - 50);
                 const std::string nm = fitText(fMed, 13, presetName(idx), nameMax);
@@ -1563,9 +1561,20 @@ private:
         s.v[pSquash] = f.squash; s.v[pDirt] = f.dirt; s.v[pAge] = f.age; s.v[pMix] = f.mix;
         s.v[pAutoGain] = S.values[pAutoGain]; s.v[pQuality] = S.values[pQuality];
         for (int k = 0; k < f.nov; ++k) s.v[f.ov[k].p] = f.ov[k].v;
+        if (f.order == nullptr || !normalizeOrder(f.order, s.order)) for (int k = 0; k < kNumStages; ++k) s.order[k] = kDefaultOrder[k];
         return s;
     }
     int numPresets() const { return kNumFactory + (int)userPresets.size(); }
+    // presets keep their index (projects store it); the browser and arrows walk them in display order
+    static int displayPos(int idx) {
+        if (idx >= kNumFactory) return idx;
+        for (int k = 0; k < kNumFactory; ++k) if (kPresetDisplay[k] == idx) return k;
+        return idx;
+    }
+    int fromDisplay(int pos) const {
+        const int n = numPresets(); pos = ((pos % n) + n) % n;
+        return pos < kNumFactory ? kPresetDisplay[pos] : pos;
+    }
     std::string presetName(int i) const {
 #ifdef MERCY_TEASER
         if (i < kNumFactory) return teaserName(i);
@@ -1740,8 +1749,8 @@ private:
             resizing = true; resizeStartScale = scale; resizeAnchorX = offX; resizeAnchorY = offY; return true;
         case tButton:
             switch (c.id) {
-            case bPrev: loadPreset(S.presetIdx - 1); break;
-            case bNext: loadPreset(S.presetIdx + 1); break;
+            case bPrev: loadPreset(fromDisplay(displayPos(S.presetIdx) - 1)); break;
+            case bNext: loadPreset(fromDisplay(displayPos(S.presetIdx) + 1)); break;
             case bSave: openNamePopup(0, -1); break;
             case bAB: toggleAB(); break;
             case bPresetName: openPresets(); break;
@@ -1880,7 +1889,7 @@ private:
         }
         g.lineJoin(NanoVG::MITER); g.lineCap(NanoVG::BUTT);
     }
-    static std::string teaserName(int i) { char b[24]; std::snprintf(b, sizeof b, "preset %02d", i + 1); return b; }
+    static std::string teaserName(int i) { char b[24]; std::snprintf(b, sizeof b, "preset %02d", displayPos(i) + 1); return b; }
 #endif
     // the hero type: blurred, RGB-split
     void splitText(NanoVG& g, int f, float size, float x, float top, const char* s, Color main, float spacing = 99.f) {
@@ -2083,7 +2092,7 @@ private:
         cells(g, 500, 260, kCorner3, 3, 6, acc1());
         // bottom bar
         ln(g, 104, 530, 620, 530, T.hair);
-        std::snprintf(b, sizeof b, "preset %02d / %02d", S.presetIdx + 1, numPresets());
+        std::snprintf(b, sizeof b, "preset %02d / %02d", displayPos(S.presetIdx) + 1, numPresets());
         txt(g, fMono, 7.5f, 104, 518, b, T.ink);
         txt(g, fMono, 7.5f, 620, 518, "x: 620 y: 530", T.ink, 2);
         ln(g, 284, 549, 284, 565, T.hair); ln(g, 340, 549, 340, 565, T.hair); ln(g, 428, 549, 428, 565, T.hair);

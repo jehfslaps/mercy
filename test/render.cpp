@@ -70,7 +70,8 @@ static std::string slug(const std::string& s) {
 static std::vector<Scenario> scenarios() {
     std::vector<Scenario> out;
     for (int i = 0; i < kNumFactory; ++i) {
-        Scenario s; s.name = "f" + std::to_string(i) + "_" + slug(kFactory[i].name) + "_2x"; s.v = factory(i, 1); out.push_back(s);
+        Scenario s; if (kFactory[i].order) s.order = kFactory[i].order;
+        s.name = "f" + std::to_string(i) + "_" + slug(kFactory[i].name) + "_2x"; s.v = factory(i, 1); out.push_back(s);
         s.name = "f" + std::to_string(i) + "_" + slug(kFactory[i].name) + "_1x"; s.v = factory(i, 0); out.push_back(s);
     }
     { Scenario s; s.name = "demo_fantasy"; s.v = fromLine(kFantasyDemo); out.push_back(s); }
@@ -126,7 +127,7 @@ static std::vector<Scenario> scenarios() {
     { Scenario s; s.name = "v2_thick_ride"; s.v = factory(1, 1);
       s.automate = [](Engine& e, double t) { e.setParam(pPreThick, (float)std::max(0.0, std::sin(t * 1.3))); e.setParam(pPreDrive, (float)(12 + 12 * std::sin(t * 0.7))); };
       out.push_back(s); }
-    for (int i = kNumFactoryV1; i < kNumFactory; ++i) { Scenario s; s.name = "v2_factory_" + std::to_string(i); s.v = factory(i, 1); out.push_back(s); }
+    for (int i = kNumFactoryV1; i < kNumFactory; ++i) { Scenario s; s.name = "v2_factory_" + std::to_string(i); s.v = factory(i, 1); if (kFactory[i].order) s.order = kFactory[i].order; out.push_back(s); }
     { Scenario s; s.name = "v2_on_off"; s.v = withNew(factory(0, 1), 0);
       s.automate = [](Engine& e, double t) { e.setParam(pRvOn, (int)(t / 0.7) % 2 ? 1.f : 0.f); e.setParam(pWtOn, (int)(t / 0.9) % 2 ? 0.f : 1.f); };
       out.push_back(s); }
