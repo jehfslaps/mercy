@@ -4,6 +4,7 @@
 #pragma once
 #include "MercyDSP.hpp"
 #include "MercyBake.hpp"
+#include "MercyCapture.hpp"
 #include <memory>
 #include <string>
 #include <atomic>
@@ -81,6 +82,10 @@ struct Session {
     std::string savedUi;       // last "ui" state handed to the plugin (from the project)
     bool touched = false;      // the user changed the layout in this session (beats the saved state)
     Scope scope;               // live waveform history (filled by the plugin's audio thread)
+    Capture capture;           // "bake what you hear" (filled by the plugin's audio thread once the bake panel has opened)
+    std::atomic<double> sampleRate {0};   // set by the plugin
+    bool captureTab = false;   // bake panel shows the capture tab
+    int captureBars = 4;       // 1, 2, 4, 8, 16, 0 = free
 };
 
 // implemented by the plugin: the session belonging to a plugin instance (empty if not available).

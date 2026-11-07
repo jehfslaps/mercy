@@ -13,6 +13,7 @@ public:
     {
         std::strcpy(fOrder, kDefaultOrderString);
         fEngine.setSampleRate(getSampleRate());
+        fSession->sampleRate.store(getSampleRate());
         setLatency(fEngine.latencySamples());
     }
 
@@ -127,12 +128,14 @@ protected:
     {
         fEngine.setSampleRate(getSampleRate());
         fSession->scope.setSampleRate(getSampleRate());
+        fSession->sampleRate.store(getSampleRate());
         setLatency(fEngine.latencySamples());
     }
     void sampleRateChanged(double sr) override
     {
         fEngine.setSampleRate(sr);
         fSession->scope.setSampleRate(sr);
+        fSession->sampleRate.store(sr);
         setLatency(fEngine.latencySamples());
     }
 
@@ -141,6 +144,16 @@ protected:
         fSession->scope.scanInput(inputs[0], inputs[1], frames);
         fEngine.process(inputs[0], inputs[1], outputs[0], outputs[1], frames);
         fSession->scope.scanOutput(outputs[0], outputs[1], frames);
+        if (fSession->capture.listening()) {   // costs nothing until the bake panel has been opened
+            const TimePosition& tp = getTimePosition();
+            CaptureTime ct;
+            ct.playing = tp.playing; ct.valid = tp.bbt.valid;
+            if (tp.bbt.valid) {
+                ct.bpm = tp.bbt.beatsPerMinute; ct.beatsPerBar = tp.bbt.beatsPerBar;
+                ct.posInBar = (tp.bbt.beat - 1) + (tp.bbt.ticksPerBeat > 0 ? tp.bbt.tick / tp.bbt.ticksPerBeat : 0.0);
+            }
+            fSession->capture.process(outputs[0], outputs[1], frames, ct, fEngine.latencySamples());
+        }
     }
 
 public:

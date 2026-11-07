@@ -73,6 +73,17 @@ Bake (MercyBake.cpp, MercyDnD.cpp):
   Tests: test/baketest.cpp (bake vs live, loop seam), test/workertest.cpp (queue, cancel, naming),
   test/fmttest.cpp (input formats).
 
+Capture (MercyCapture.hpp, bake panel "capture" tab):
+  The plugin keeps a rolling history of its own output (66 s at <= 96 kHz, 33 s above) once the bake panel
+  has been opened in this session (nothing is allocated or done before that), plus every bar line the host
+  reports (DISTRHO_PLUGIN_WANT_TIMEPOS), stored shifted by the plugin's latency so beat 1 = sample 0.
+  grab = the last N whole bars that have fully played; record = arms, starts on the next bar line, stops by
+  itself after N bars or on the bar after "stop"; with the transport stopped it starts on the first sound and
+  trims the silence after. Takes are written by the Baker's worker as capture_<preset>_<bpm>bpm_<n>bars_###.wav
+  in the bake folder, listed with the bakes, dragged out the same way, never re-baked. No fades or tail
+  folding: live audio already carries the previous bar's tail. Audio thread: copies into the pre-allocated
+  ring only. Test: test/capturetest.cpp (grab/record sample-exact vs the output stream, seam, free takes).
+
 Interface session (MercySession.hpp, v1.6):
   The plugin owns a Session (values, chain order, page, bake panel, bulk mode, bake list + worker,
   preset index, A/B). The UI gets it through DISTRHO_PLUGIN_WANT_DIRECT_ACCESS

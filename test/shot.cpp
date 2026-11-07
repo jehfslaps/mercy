@@ -13,6 +13,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <string>
+#include <cmath>
 START_NAMESPACE_DGL
 struct Host : mercy::ViewHost {
   void hostBeginEdit(uint32_t) override {} void hostEndEdit(uint32_t) override {}
@@ -73,6 +74,26 @@ int main(int argc,char** argv){
       click(560,432,7000);
       win.view.motion(300,300,0); } break;
   case 10: click(482,66,1000); click(780,560,2000); win.view.setDropHover(true); break;
+  case 30: case 31: case 32: case 33: { // capture tab: 30 listening, 31 recording, 32 a few captures in the list, 33 single tab (the link)
+      win.sess.sampleRate.store(44100);
+      click(482,66,1000); click(780,560,2000);
+      if (mode != 33) click(386,128,3000);
+      std::vector<float> L, R; double sr = 44100; std::string err;
+      mercy::loadAudioFile(getenv("SHOT_LOOP") ? getenv("SHOT_LOOP") : "dry_loop.wav", L, R, sr, err);
+      const double bpm = 8 * 60.0 / (L.size() / sr);
+      uint64_t pos = 0;
+      auto play = [&](double bars) { const uint64_t until = (uint64_t)(bars * 4 * 60.0 / bpm * sr);
+        while (pos < until) { const uint32_t n = (uint32_t)std::min<uint64_t>(512, until - pos); std::vector<float> l(n), r(n);
+          for (uint32_t i = 0; i < n; ++i) { l[i] = L[(pos + i) % L.size()] * .8f; r[i] = R[(pos + i) % L.size()] * .8f; }
+          mercy::CaptureTime t; t.playing = t.valid = true; t.bpm = bpm; t.beatsPerBar = 4; t.posInBar = std::fmod((double)pos / sr * bpm / 60.0, 4.0);
+          win.sess.capture.process(l.data(), r.data(), n, t, 221); pos += n; } };
+      play(17.4);
+      if (mode == 31) { win.sess.capture.arm(4); play(19.7); win.view.idle(); }
+      if (mode == 32) { win.view.motion(400,368,0); click(400,368,4000); play(21.2); click(207,322,4500); click(400,368,5000);
+          for(int i=0;i<60;i++){ win.view.idle(); usleep(20000); } win.view.motion(400,368,0); }
+      else if (mode == 30) win.view.motion(400,368,0);
+      else if (mode == 33) win.view.motion(560,284,0);
+      win.view.idle(); } break;
   case 13: click(260,557,1000); for (const char* c="dark fantasy kick"; *c; ++c) win.view.character((unsigned)*c); break; // save -> type a name
   case 14: click(150,557,1000); for(int i=0;i<10;i++) win.view.scroll(300,300,-1,0); win.view.motion(200,462,0); break;       // browser, hover a user preset
   case 15: click(150,557,1000); for(int i=0;i<10;i++) win.view.scroll(300,300,-1,0); win.view.mouse(2,true,450,462,0,2000); win.view.motion(470,462+34,0); break; // right-click menu

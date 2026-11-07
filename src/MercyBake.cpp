@@ -502,8 +502,9 @@ void Baker::addFiles(const std::vector<std::string>& paths, bool replace) {
     }
     if (fresh.empty()) return;
     std::lock_guard<std::mutex> lk(m);
-    if (replace) {
-        queue.clear(); cancelCurrent = true; items.clear();
+    if (replace) {   // single mode: the new file replaces the old one (captures stay)
+        queue.clear(); cancelCurrent = true;
+        items.erase(std::remove_if(items.begin(), items.end(), [](const Item& i) { return !i.capture; }), items.end());
         fresh.resize(1);
     }
     for (Item& it : fresh) {
@@ -526,10 +527,25 @@ void Baker::bakeAll(const BakeSettings& s) {
     queue.clear();
     cancelCurrent = true; // restart anything in progress with the new settings
     for (Item& it : items) {
+        if (it.capture) continue;   // captures are already what you heard
         it.state = kWaiting; it.progress = 0; it.error.clear();
         queue.push_back(it.id);
     }
     cv.notify_all();
+}
+
+void Baker::addCapture(std::vector<float> L, std::vector<float> R, double sr, const std::string& stem, const std::string& label) {
+    std::lock_guard<std::mutex> lk(m);
+    Item it; it.id = nextId++; it.capture = true; it.name = label; it.seconds = sr > 0 ? (double)L.size() / sr : 0; it.state = kBaking;
+    items.insert(items.begin(), it);
+    capJobs.push_back(CapJob{it.id, std::move(L), std::move(R), sr, stem});
+    cv.notify_all();
+}
+
+int Baker::numBakeable() {
+    std::lock_guard<std::mutex> lk(m);
+    int n = 0; for (const Item& it : items) n += !it.capture;
+    return n;
 }
 
 std::vector<Baker::Item> Baker::snapshot() {
@@ -541,7 +557,9 @@ std::vector<Baker::Item> Baker::snapshot() {
 
 bool Baker::busy() {
     std::lock_guard<std::mutex> lk(m);
-    return curId >= 0 || !queue.empty();
+    if (curId >= 0 || !queue.empty() || !capJobs.empty()) return true;
+    for (const Item& it : items) if (it.state == kBaking) return true;   // a capture being written
+    return false;
 }
 
 int Baker::numItems() {
@@ -560,6 +578,34 @@ static std::string slug(const std::string& s) {
     return o.empty() ? "custom" : o;
 }
 
+void Baker::writeCapture(CapJob& j) {
+    float peak = 0;
+    for (size_t i = 0; i < j.L.size(); ++i) peak = std::max(peak, std::max(std::fabs(j.L[i]), std::fabs(j.R[i])));
+    const bool asFloat = peak > 1.0f;
+    const std::string dir = bakeFolder(true);
+#ifdef _WIN32
+    const std::string sep = "\\";
+#else
+    const std::string sep = "/";
+#endif
+    std::string outPath, err;
+    char num[16];
+    for (int k = 1; k < 1000; ++k) { std::snprintf(num, sizeof num, "_%03d", k); outPath = dir + sep + j.stem + num + ".wav"; if (!fileExists(outPath)) break; }
+    const bool ok = writeWavFile(outPath, j.L, j.R, j.sr, asFloat, err);
+    std::lock_guard<std::mutex> lk(m);
+    for (Item& it : items) if (it.id == j.id) {
+        if (ok) { it.state = kDone; it.progress = 1; it.outPath = outPath; it.outName = fileName(outPath); it.peakDb = linToDb(peak); it.asFloat = asFloat; }
+        else { it.state = kError; it.error = err; }
+    }
+}
+
+std::string captureStem(const std::string& preset, double bpm, int bars, double seconds) {
+    char b[96];
+    if (bars > 0 && bpm > 1) std::snprintf(b, sizeof b, "_%dbpm_%dbar%s", (int)std::lround(bpm), bars, bars == 1 ? "" : "s");
+    else std::snprintf(b, sizeof b, "_%ds", std::max(1, (int)std::lround(seconds)));
+    return std::string("capture_") + slug(preset) + b;
+}
+
 void Baker::run() {
     for (;;) {
         int id = -1;
@@ -567,8 +613,14 @@ void Baker::run() {
         std::string inPath, base;
         {
             std::unique_lock<std::mutex> lk(m);
-            cv.wait(lk, [this] { return quit.load() || !queue.empty(); });
+            cv.wait(lk, [this] { return quit.load() || !queue.empty() || !capJobs.empty(); });
             if (quit) return;
+            if (!capJobs.empty()) {   // captures first: they're quick (just a file write)
+                CapJob j = std::move(capJobs.front()); capJobs.pop_front();
+                lk.unlock();
+                writeCapture(j);
+                continue;
+            }
             id = queue.front(); queue.pop_front();
             bool found = false;
             for (Item& it : items) if (it.id == id) { it.state = kBaking; it.progress = 0; inPath = it.inPath; found = true; }

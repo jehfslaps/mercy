@@ -37,6 +37,9 @@ bool exportToDesktop(const std::vector<std::string>& files, const std::string& f
 std::string macHomeFolder(); // the real home folder, even inside a sandboxed host
 #endif
 
+// "capture_gold-throne_160bpm_4bars" (or "capture_gold-throne_7s" when not bar-synced)
+std::string captureStem(const std::string& preset, double bpm, int bars, double seconds);
+
 // ---- the render itself (no threads, no UI): returns false if cancelled
 // Loops are rendered seamlessly: the engine is warmed up on the end of the file first, the look-ahead
 // is flushed with the start of the file, and the output keeps the exact length and timing of the input.
@@ -57,6 +60,7 @@ public:
         std::string outPath, outName, error;
         float peakDb = -100;
         bool asFloat = false;
+        bool capture = false;   // a live capture (written as is, not re-baked)
     };
 
     Baker();
@@ -64,6 +68,10 @@ public:
 
     // replace = single mode (keeps just the newest file)
     void addFiles(const std::vector<std::string>& paths, bool replace);
+    // a live capture: written to the bake folder as it is and added to the top of the list.
+    // stem: e.g. "capture_gold-throne_160bpm_4bars" (a number is added). label: what the list shows.
+    void addCapture(std::vector<float> L, std::vector<float> R, double sr, const std::string& stem, const std::string& label);
+    int numBakeable();   // items a bake would render (not captures)
     void clear();
     // bake every item in the list with these settings (re-bakes finished ones)
     void bakeAll(const BakeSettings& s);
@@ -83,6 +91,9 @@ private:
     std::atomic<float> curProgress {0};
     int curId = -1;
     int nextId = 1;
+    struct CapJob { int id; std::vector<float> L, R; double sr; std::string stem; };
+    std::deque<CapJob> capJobs;
+    void writeCapture(CapJob& j);
     void run();
 };
 

@@ -1,6 +1,7 @@
 // MERCY drum processor - interface (drawing + interaction), host-agnostic
 // v1.7 "signal grain": Swiss layout, print grain, sound as data. Light + dark.
 #pragma once
+#include <chrono>
 #include "NanoVG.hpp"
 #include "MercyDSP.hpp"
 #include "MercyBake.hpp"
@@ -311,6 +312,13 @@ public:
     void idle() {
         syncUiState();
         syncKeyFocus(false);
+        if (S.bakeOpen) {
+            ensureBaker(); S.capture.ensure(S.sampleRate.load());
+            Capture::Clip clip;
+            if (S.capture.poll(clip)) addClip(std::move(clip));
+            if (S.page == 1 && S.captureTab) host->hostRepaint();   // the strip scrolls with the music
+        }
+        if (S.capture.state() != lastCapState) { lastCapState = S.capture.state(); host->hostRepaint(); }
         if (S.bakeOpen && S.baker) {
             const bool b = S.baker->busy();
             if (b || bakeWasBusy) { bakeItems = S.baker->snapshot(); host->hostRepaint(); }
@@ -470,7 +478,7 @@ public:
         std::ostringstream o;
         o << "v1;pv=2;page=" << S.page << ";bake=" << (S.bakeOpen ? 1 : 0) << ";bulk=" << (S.bulkMode ? 1 : 0)
           << ";bscroll=" << S.bakeScroll << ";preset=" << S.presetIdx << ";pmod=" << (S.presetModified ? 1 : 0)
-          << ";ab=" << S.abCur << ";dark=" << (S.dark ? 1 : 0);
+          << ";ab=" << S.abCur << ";dark=" << (S.dark ? 1 : 0) << ";cap=" << (S.captureTab ? 1 : 0) << ";capbars=" << S.captureBars;
         for (int k = 0; k < 2; ++k) {
             if (!S.ab[k].valid) continue;
             o << (k ? ";b=" : ";a=");
@@ -513,6 +521,8 @@ public:
             else if (k == "pmod") S.presetModified = iv == 1;
             else if (k == "ab") S.abCur = iv == 1 ? 1 : 0;
             else if (k == "dark") S.dark = iv != 0;
+            else if (k == "cap") S.captureTab = iv == 1;
+            else if (k == "capbars") S.captureBars = (iv == 0 || iv == 1 || iv == 2 || iv == 4 || iv == 8 || iv == 16) ? iv : 4;
             else if (k == "a" || k == "b") {
                 Snapshot& sn = S.ab[k == "b" ? 1 : 0];
                 const size_t bar = val.find('|');
@@ -535,7 +545,7 @@ public:
             if (presetListV < 2 && rawPreset >= kNumFactoryV1) rawPreset += kNumFactory - kNumFactoryV1;
             S.presetIdx = std::max(0, std::min(rawPreset, numPresets() - 1));
         }
-        if (S.bakeOpen) { ensureBaker(); bakeItems = S.baker->snapshot(); }
+        if (S.bakeOpen) { ensureBaker(); bakeItems = S.baker->snapshot(); S.capture.ensure(S.sampleRate.load()); }
     }
     void syncUiState() {
         const std::string now = encodeUiState();
@@ -556,6 +566,7 @@ public:
         std::vector<std::string> audio = expandAudioPaths(paths, &hadFolder); // folders: every loop inside
         bakeNote = audio.empty() ? (hadFolder ? "no audio files in that folder" : "that's not an audio file (wav, aiff, flac, mp3)") : "";
         if (!audio.empty()) {
+            S.captureTab = false;   // files dropped: back to baking them
             if (hadFolder && audio.size() > 1) S.bulkMode = true; // a folder of loops is a bulk job
             if (!S.bulkMode) audio.resize(1);
             S.baker->addFiles(audio, !S.bulkMode);
@@ -1032,9 +1043,46 @@ private:
     static constexpr float kDX = 128, kDY = 172, kDW = 380, kDH = 172; // drop zone
     static constexpr float kLX = 540, kLW = 380;                       // file list
     static constexpr int kBakeRows = 3;
-    enum { zNone = -1, zClose = 1, zSingle, zBulk, zBrowse, zBakeBtn, zOpenFolder, zClear, zDragAll, zDrop, zExport, zRow0 = 100 };
+    enum { zNone = -1, zClose = 1, zSingle, zBulk, zBrowse, zBakeBtn, zOpenFolder, zClear, zDragAll, zDrop, zExport,
+           zCapTab, zCapLink, zRec, zGrab, zLen0 = 40, zRow0 = 100 };
+    // ---- capture tab
+    int lastCapState = 0;
+    float grabFlashT = -1;                 // seconds since the last grab (for the flash), < 0 = none
+    std::chrono::steady_clock::time_point grabFlashAt;
+    std::string capNote;                   // "nothing to grab yet" etc.
+    static int lenVal(int i) { static const int v[6] = {1, 2, 4, 8, 16, 0}; return v[i]; }
+    static constexpr float kCapSY = 172, kCapSH = 128, kCapLenY = 316, kCapBtnY = 342, kCapBtnH = 52;
+    float lenX(int i) const {
+        float x = kDX + 52;
+        for (int k = 0; k < i; ++k) x += tw(fMed, 14, k == 5 ? "free" : std::to_string(lenVal(k)).c_str()) + 15.f;
+        return x;
+    }
+    int grabBars() const { return S.captureBars > 0 ? S.captureBars : 16; }
+    void addClip(Capture::Clip&& c) {
+        ensureBaker();
+        const std::string preset = presetName(S.presetIdx) + (S.presetModified ? " edit" : "");
+        char lab[96];
+        if (c.bars > 0) std::snprintf(lab, sizeof lab, "capture \xC2\xB7 %d bar%s", c.bars, c.bars == 1 ? "" : "s");
+        else std::snprintf(lab, sizeof lab, "capture \xC2\xB7 free");
+        const std::string stem = captureStem(preset, c.bpm, c.bars, c.seconds);
+        S.baker->addCapture(std::move(c.L), std::move(c.R), c.sr, stem, lab);
+        S.bakeScroll = 0; bakeWasBusy = true; capNote.clear();
+        bakeItems = S.baker->snapshot();
+        host->hostRepaint();
+    }
+    void doGrab() {
+        Capture::Clip c;
+        if (S.capture.grab(grabBars(), c)) { addClip(std::move(c)); grabFlashAt = std::chrono::steady_clock::now(); grabFlashT = 0; }
+        else capNote = "nothing to grab yet: play something through mercy";
+    }
+    // single tab: "or browse  ·  or capture what you hear"
+    void linkLayout(float& xb, float& wb, float& xc, float& wc) const {
+        wb = tw(fMed, 13.5f, "or browse"); const float wd = tw(fMed, 13.5f, "  \xC2\xB7  "); wc = tw(fMed, 13.5f, "or capture what you hear");
+        xb = kDX + kDW / 2 - (wb + wd + wc) / 2; xc = xb + wb + wd;
+    }
     std::string exportNote; // after "export to desktop": where the files went
     int numDone() const { int n = 0; for (const auto& it : bakeItems) n += it.state == Baker::kDone; return n; }
+    int numBakeableItems() const { int n = 0; for (const auto& it : bakeItems) n += !it.capture; return n; }
     // "export to desktop": a small solid button under the file count (white on dark, black on light)
     static constexpr float kEY = 424, kEH = 24;
     float exportLinkW() const { return tw(fMed, 12, "export to desktop") + 34.f; }
@@ -1055,7 +1103,7 @@ private:
     void ensureBaker() { if (!S.baker) S.baker.reset(new Baker()); }
     void toggleBake() {
         S.bakeOpen = !S.bakeOpen; modOpen = -1;
-        if (S.bakeOpen) { ensureBaker(); bakeItems = S.baker->snapshot(); bakeNote.clear(); }
+        if (S.bakeOpen) { ensureBaker(); bakeItems = S.baker->snapshot(); bakeNote.clear(); S.capture.ensure(S.sampleRate.load()); }
     }
     BakeSettings bakeSettings() const {
         BakeSettings s;
@@ -1071,9 +1119,25 @@ private:
         if (y >= 112 && y <= 146) {
             if (x >= tabX(0) - 6 && x < tabX(0) + tw(fMed, 15, "single") + 8) return zSingle;
             if (x >= tabX(1) - 8 && x < tabX(1) + tw(fMed, 15, "bulk") + 8) return zBulk;
+            if (x >= tabX(2) - 8 && x < tabX(2) + tw(fMed, 15, "capture") + 8) return zCapTab;
+        }
+        if (S.captureTab) {
+            if (y >= kCapLenY - 6 && y <= kCapLenY + 20)
+                for (int i = 0; i < 6; ++i) { const float x0 = lenX(i), w = tw(fMed, 14, i == 5 ? "free" : std::to_string(lenVal(i)).c_str());
+                    if (x >= x0 - 6 && x <= x0 + w + 6) return zLen0 + i; }
+            if (y >= kCapBtnY && y <= kCapBtnY + kCapBtnH) {
+                if (x >= kDX && x < kDX + kDW / 2 - 4) return zRec;
+                if (x > kDX + kDW / 2 + 4 && x <= kDX + kDW) return zGrab;
+            }
+            if (x >= kDX - 4 && x <= kDX + 150 && y >= 474 && y <= 508) return zOpenFolder;
+            if (x < kLX - 20) return zNone;
         }
         if (x >= kDX && x <= kDX + kDW && y >= kDY && y <= kDY + kDH) {
-            if (y >= kDY + 98 && y <= kDY + 126 && std::fabs(x - (kDX + kDW / 2)) < 52) return zBrowse;
+            if (y >= kDY + 98 && y <= kDY + 126) {
+                float xb, wb, xc, wc; linkLayout(xb, wb, xc, wc);
+                if (x >= xb - 4 && x <= xb + wb + 4) return zBrowse;
+                if (x >= xc - 4 && x <= xc + wc + 4) return zCapLink;
+            }
             return zDrop;
         }
         if (x >= kDX && x <= kDX + kDW + 20 && y >= 360 && y <= 412) return zBakeBtn;
@@ -1107,16 +1171,23 @@ private:
         ensureBaker();
         switch (z) {
         case zClose: S.bakeOpen = false; break;
-        case zSingle: S.bulkMode = false; break;
-        case zBulk: S.bulkMode = true; break;
+        case zSingle: S.bulkMode = false; S.captureTab = false; break;
+        case zBulk: S.bulkMode = true; S.captureTab = false; break;
+        case zCapTab: case zCapLink: S.captureTab = true; S.capture.ensure(S.sampleRate.load()); break;
+        case zRec: {
+            const int st = S.capture.state();
+            if (st == Capture::kIdle || st == Capture::kDone) S.capture.arm(S.captureBars); else S.capture.stop();
+        } break;
+        case zGrab: doGrab(); break;
         case zBrowse: case zDrop: host->hostBrowseFile(); break;
-        case zBakeBtn: if (!bakeItems.empty()) { S.baker->bakeAll(bakeSettings()); bakeWasBusy = true; exportNote.clear(); } break;
+        case zBakeBtn: if (numBakeableItems() > 0) { S.baker->bakeAll(bakeSettings()); bakeWasBusy = true; exportNote.clear(); } break;
         case zOpenFolder: openFolderInShell(bakeFolder(true)); break;
         case zClear: S.baker->clear(); S.bakeScroll = 0; exportNote.clear(); break;
         case zDragAll: bakePress = -2; bakePressX = x; bakePressY = y; break;
         case zExport: exportBakes(); break;
         default:
             if (z >= zRow0) { bakePress = z - zRow0; bakePressX = x; bakePressY = y; }
+            else if (z >= zLen0 && z < zLen0 + 6 && S.capture.state() == Capture::kIdle) S.captureBars = lenVal(z - zLen0);
             break;
         }
         bakeItems = S.baker->snapshot();
@@ -1154,6 +1225,121 @@ private:
         ln(g, x + s * .35f, y, x + s, y, c, 1.2f);
         ln(g, x + s, y, x + s, y + s * .65f, c, 1.2f);
     }
+    // ---- capture tab: the last 16 bars MERCY played, grab / record
+    void drawCapture(NanoVG& g) {
+        char b[96];
+        const float DX = kDX, DW = kDW, SY = kCapSY, SH = kCapSH;
+        CaptureBuf* c = S.capture.history();
+        const double bpm = S.capture.tempo(); const float bpb = S.capture.barBeats();
+        const bool synced = S.capture.transportOn() && bpm > 1;
+        const int st = S.capture.state();
+        if (grabFlashT >= 0) { grabFlashT = std::chrono::duration<float>(std::chrono::steady_clock::now() - grabFlashAt).count(); if (grabFlashT > .6f) grabFlashT = -1; }
+        ro(g, DX, SY, DW, SH, T.hair, 1.f);
+        txt(g, fMono, 8.5f, DX + 10, SY + 9, "fig. 05 \xE2\x80\x94 always listening \xC2\xB7 last 16 bars", T.ink2);
+        if (bpm > 1) std::snprintf(b, sizeof b, "%.0f bpm \xC2\xB7 %d/4%s", bpm, (int)std::lround(bpb), synced ? "" : " \xC2\xB7 stopped");
+        else std::snprintf(b, sizeof b, "waiting for the host's tempo");
+        txt(g, fMono, 8.5f, DX + DW - 10, SY + 9, b, T.ink2, 2);
+        const float x0 = DX + 10, x1 = DX + DW - 10, top = SY + 28, bot = SY + SH - 12, ymid = (top + bot) / 2, amp = (bot - top) * .46f;
+        if (c) {
+            const uint64_t now = c->written.load(std::memory_order_acquire);
+            const double barF = c->sr * 60.0 / (bpm > 1 ? bpm : 120.0) * (bpb > 0 ? bpb : 4.f);
+            const uint64_t span = (uint64_t)std::min<double>(16 * barF, c->cap - c->sr * 0.5);
+            const double fpx = span / (double)(x1 - x0);
+            auto X = [&](uint64_t f) { return x1 - (float)((double)(now > f ? now - f : 0) / fpx); };
+            // the grab selection / the take
+            uint64_t sa = 0, sb = 0; bool sel = false, take = false;
+            if (S.capture.takeSoFar(sa, sb)) take = true;
+            else if (synced && S.capture.lastBars(grabBars(), sa, sb)) sel = true;
+            else if (now > 0) { sb = now; const uint64_t len = (uint64_t)(grabBars() * barF); sa = now > len ? now - len : 0; sel = true; }
+            if (sel || take) {
+                const float a = std::max(x0, X(sa)), e = std::min(x1, X(sb));
+                if (e > a) {
+                    const Color col = take ? T.red : T.mint;
+                    rc(g, a, top - 4, e - a, bot - top + 8, alpha(col, take ? .16f : (grabFlashT >= 0 ? .14f + .3f * (1 - grabFlashT / .6f) : .10f)));
+                    ro(g, a, top - 4, e - a, bot - top + 8, col, 1.f);
+                    if (sel) { std::snprintf(b, sizeof b, "last %d bar%s", grabBars(), grabBars() == 1 ? "" : "s"); if (e - a > tw(fMono, 8, b) + 8) txt(g, fMono, 8, e - 4, top - 1, b, T.mint, 2); }
+                }
+            }
+            // waveform from the peak history
+            const int cols = (int)((x1 - x0) / 1.5f);
+            for (int i = 0; i < cols; ++i) {
+                const float x = x0 + i * 1.5f;
+                const double fa = (double)now - (x1 - x) * fpx, fb = fa + fpx * 1.5;
+                if (fb <= 0 || (double)now - fa > c->cap - c->sr * 0.25) continue;
+                uint64_t ba = (uint64_t)std::max(0.0, fa) / CaptureBuf::kBin, bb = (uint64_t)std::max(0.0, fb) / CaptureBuf::kBin;
+                float p = 0, sum = 0; int cnt = 0;
+                for (uint64_t k = ba; k <= bb && k < now / CaptureBuf::kBin; ++k) { const float v = c->peaks[(uint32_t)(k % c->peakCap)]; p = std::max(p, v); sum += v * v; ++cnt; }
+                if (p <= 1e-4f || cnt == 0) continue;
+                // the body (energy of the column) solid, the peaks faint around it: hits read as hits even 16 bars wide
+                const float hp = std::min(1.f, std::pow(p, .8f)) * amp, hb = std::min(1.f, std::pow(std::sqrt(sum / cnt), .9f) * 1.15f) * amp;
+                const bool in = (sel || take) && fa >= (double)sa && fb <= (double)sb + fpx * 1.5;
+                ln(g, x, ymid - hp, x, ymid + hp, in ? alpha(T.ink, .35f) : alpha(T.grey, .22f), 1.f);
+                ln(g, x, ymid - hb, x, ymid + hb, in ? T.ink : alpha(T.grey, .6f), 1.f);
+            }
+            // bar lines, counted back from the newest one
+            const uint32_t n = c->nMarks.load(std::memory_order_acquire);
+            for (uint32_t k = 0; k < std::min<uint32_t>(n, 24); ++k) {
+                const uint64_t f = c->mark(n - 1 - k);
+                if (f > now || now - f > span) continue;
+                const float x = X(f);
+                ln(g, x, top - 4, x, bot + 4, T.hair2, 1.f);
+                if (k > 0 && k % 4 == 0) { std::snprintf(b, sizeof b, "-%u", k); txt(g, fMono, 7.5f, x + 2, bot - 6, b, T.grey); }
+            }
+        } else txt(g, fMed, 13.5f, DX + DW / 2, ymid - 8, "opening\xE2\x80\xA6", T.grey, 1);
+        ln(g, x1, top - 6, x1, bot + 6, T.red, 1.5f);
+        txt(g, fMono, 7.5f, x1 - 3, bot - 6, "now", T.red, 2);
+
+        // length
+        txt(g, fMono, 9.5f, DX, kCapLenY + 3, "length", T.grey);
+        float lx = 0;
+        for (int i = 0; i < 6; ++i) {
+            const std::string v = i == 5 ? "free" : std::to_string(lenVal(i));
+            const bool on = S.captureBars == lenVal(i), hov = bakeHover == zLen0 + i;
+            lx = lenX(i);
+            txt(g, fMed, 14, lx, kCapLenY, v.c_str(), on ? T.ink : (hov ? T.ink2 : T.grey));
+            if (on) rc(g, lx, kCapLenY + 18, tw(fMed, 14, v.c_str()), 1.5f, T.red);
+        }
+        txt(g, fMono, 9.5f, lx + tw(fMed, 14, "free") + 12, kCapLenY + 3, "bars", T.grey);
+
+        // record / grab
+        const float BY = kCapBtnY, BH = kCapBtnH, BW = DW / 2 - 4;
+        const bool live = st == Capture::kRec || st == Capture::kStopReq;
+        if (live) {
+            const Color onRed = rgb(0xF4F2F3);   // light on red in both themes
+            rc(g, DX, BY, BW, BH, T.red);
+            rc(g, DX + 22, BY + BH / 2 - 5, 10, 10, onRed);
+            txt(g, fBold, 17, DX + 40, BY + 16, st == Capture::kStopReq ? "finishing" : "stop", onRed, 0, .01f);
+            if (S.captureBars > 0 && synced) std::snprintf(b, sizeof b, "bar %d / %d", std::min(S.capture.barsSoFar() + 1, S.captureBars), S.captureBars);
+            else { uint64_t a = 0, e = 0; S.capture.takeSoFar(a, e); const double sec = c ? (double)(e - a) / c->sr : 0; std::snprintf(b, sizeof b, "%d:%02d", (int)sec / 60, (int)sec % 60); }
+            txt(g, fMono, 9, DX + BW - 12, BY + 21, b, onRed, 2);
+        } else {
+            const bool armed = st == Capture::kArmed, hov = bakeHover == zRec;
+            ro(g, DX, BY, BW, BH, armed ? T.red : (hov ? T.ink : T.hair), 1.5f);
+            g.beginPath(); g.circle(DX + 27, BY + BH / 2, 5); g.fillColor(T.red); g.fill();
+            txt(g, fBold, 17, DX + 40, BY + 16, armed ? "armed" : "record", T.ink, 0, .01f);
+            if (armed) txt(g, fMono, 8.5f, DX + BW - 12, BY + 22, synced ? "next bar" : "first sound", T.grey, 2);
+        }
+        {
+            const bool hov = bakeHover == zGrab;
+            const float gx = DX + DW / 2 + 4;
+            if (hov) rc(g, gx, BY, BW, BH, T.hoverRow);
+            ro(g, gx, BY, BW, BH, hov ? T.ink : T.hair, 1.5f);
+            std::snprintf(b, sizeof b, "grab last %d bar%s", grabBars(), grabBars() == 1 ? "" : "s");
+            txt(g, fBold, 17, gx + BW / 2, BY + 16, b, T.ink, 1, .01f);
+        }
+        if (!capNote.empty()) txt(g, fMono, 9.5f, DX, 430, capNote.c_str(), T.red);
+        else if (st == Capture::kArmed || live) {
+            if (synced && S.captureBars > 0) std::snprintf(b, sizeof b, "recording from the bar \xC2\xB7 stops by itself after %d bar%s", S.captureBars, S.captureBars == 1 ? "" : "s");
+            else if (synced) std::snprintf(b, sizeof b, "recording from the bar \xC2\xB7 hit stop when you're done");
+            else std::snprintf(b, sizeof b, "transport stopped: recording starts on the first sound");
+            txt(g, fMono, 9.5f, DX, 430, b, T.ink);
+            txt(g, fMono, 9.5f, DX, 446, synced ? "stop finishes the bar, so the loop stays whole" : "stop ends it; the silence after is trimmed", T.ink);
+        } else {
+            txt(g, fMono, 9.5f, DX, 430, "captures exactly what you hear: after every knob, module and filter", T.ink);
+            txt(g, fMono, 9.5f, DX, 446, "snaps to the bar \xC2\xB7 lines up to the sample \xC2\xB7 loops wrap seamlessly", T.ink);
+        }
+    }
+
     void drawBakePanel(NanoVG& g) {
         const float PX = kBX, PY = kBY, PW = kBW, PH = kBH;
         char b[160];
@@ -1161,20 +1347,30 @@ private:
         rc(g, PX, PY, PW, PH, T.paper);
         ro(g, PX, PY, PW, PH, T.ink, 1.5f);
         splitText(g, fWide, 30, PX + 24, PY + 18, "bake.", T.ink);
-        const char* modes[2] = {"single", "bulk"};
-        for (int k = 0; k < 2; ++k) {
-            const bool sel = (k == 1) == S.bulkMode, hov = bakeHover == (k ? zBulk : zSingle);
+        const char* modes[3] = {"single", "bulk", "capture"};
+        const int capSt = S.capture.state();
+        const bool capLive = capSt == Capture::kRec || capSt == Capture::kStopReq;
+        for (int k = 0; k < 3; ++k) {
+            const bool sel = S.captureTab ? k == 2 : (k < 2 && (k == 1) == S.bulkMode);
+            const bool hov = bakeHover == (k == 2 ? zCapTab : (k ? zBulk : zSingle));
             const float x = tabX(k);
             txt(g, fMed, 15, x, 122, modes[k], sel ? T.red : (hov ? T.ink : T.grey));
             if (sel) rc(g, x, 141, tw(fMed, 15, modes[k]), 1.5f, T.red);
+            if (k == 2 && (capLive || capSt == Capture::kArmed)) {   // recording: a red dot on the tab
+                g.beginPath(); g.circle(x + tw(fMed, 15, modes[k]) + 6, 124, 3); g.fillColor(capLive ? T.red : alpha(T.red, .5f)); g.fill();
+            }
         }
         txt(g, fMono, 8.5f, PX + PW - 66, PY + 16, "fig. 03", T.ink2, 2);
         txt(g, fMono, 8.5f, PX + PW - 66, PY + 28, coordStr(b, sizeof b, PX + PW, PY), T.ink, 2);
         closeGlyph(g, PX + PW - 40, PY + 16, 14, bakeHover == zClose ? T.red : T.ink);
         ln(g, PX, 152, PX + PW, 152, T.hair);
 
-        // ---- drop zone: a faint score of loops behind the words
         const float DX = kDX, DY = kDY, DW = kDW, DH = kDH;
+        int done = 0, baking = 0;
+        for (const auto& it : bakeItems) { if (it.state == Baker::kDone) ++done; if (it.state == Baker::kBaking) ++baking; }
+        if (S.captureTab) drawCapture(g);
+        else {
+        // ---- drop zone: a faint score of loops behind the words
         if (dropOver) rc(g, DX, DY, DW, DH, alpha(T.red, .08f));
         {
             Rng rr(9);
@@ -1200,10 +1396,14 @@ private:
             const float w = tw(fSemi, 23, big);
             rc(g, DX + DW / 2 - w / 2 - 10, DY + 56, w + 20, 36, T.paper);
             txt(g, fSemi, 23, DX + DW / 2, DY + 62, big, dropOver ? T.red : T.ink, 1);
-            const float wb = tw(fMed, 13.5f, "or browse");
-            const Color bc = bakeHover == zBrowse ? T.red : T.ink2;
-            txt(g, fMed, 13.5f, DX + DW / 2, DY + 104, "or browse", bc, 1);
-            rc(g, DX + DW / 2 - wb / 2, DY + 104 + 13.5f * .92f + 4, wb, 1, bc);
+            float xb, wb, xc, wc; linkLayout(xb, wb, xc, wc);
+            const Color bc = bakeHover == zBrowse ? T.red : T.ink2, cc = bakeHover == zCapLink ? T.red : T.ink2;
+            rc(g, xb - 6, DY + 100, xc + wc - xb + 12, 22, T.paper);
+            txt(g, fMed, 13.5f, xb, DY + 104, "or browse", bc);
+            rc(g, xb, DY + 104 + 13.5f * .92f + 4, wb, 1, bc);
+            txt(g, fMed, 13.5f, xb + wb, DY + 104, "  \xC2\xB7  ", T.grey);
+            txt(g, fMed, 13.5f, xc, DY + 104, "or capture what you hear", cc);
+            rc(g, xc, DY + 104 + 13.5f * .92f + 4, wc, 1, cc);
             const char* fm = bakeNote.empty() ? "wav \xC2\xB7 aiff \xC2\xB7 flac \xC2\xB7 mp3 \xC2\xB7 folders" : bakeNote.c_str();
             const float wf = tw(fMono, 9, fm);
             rc(g, DX + DW / 2 - wf / 2 - 6, DY + DH - 24, wf + 12, 13, T.paper);
@@ -1212,11 +1412,11 @@ private:
 
         // ---- bake button
         const bool busy = S.baker && S.baker->busy();
-        int done = 0, baking = 0;
-        for (const auto& it : bakeItems) { if (it.state == Baker::kDone) ++done; if (it.state == Baker::kBaking) ++baking; }
-        const bool canBake = !bakeItems.empty();
-        if (busy) std::snprintf(b, sizeof b, "baking %d / %d", std::min(done + 1, (int)bakeItems.size()), (int)bakeItems.size());
-        else if (S.bulkMode && bakeItems.size() > 1) std::snprintf(b, sizeof b, "bake all (%d)", (int)bakeItems.size());
+        const int nb = numBakeableItems();
+        int nbDone = 0; for (const auto& it : bakeItems) nbDone += !it.capture && it.state == Baker::kDone;
+        const bool canBake = nb > 0;
+        if (busy && nb > 0 && nbDone < nb) std::snprintf(b, sizeof b, "baking %d / %d", std::min(nbDone + 1, nb), nb);
+        else if (S.bulkMode && nb > 1) std::snprintf(b, sizeof b, "bake all (%d)", nb);
         else std::snprintf(b, sizeof b, "bake");
         static const int stairs[][2] = {{0, 0}, {0, 1}, {1, 1}, {0, 3}, {1, 4}, {0, 6}, {1, 7}, {2, 7}};
         if (canBake) {
@@ -1230,6 +1430,7 @@ private:
         }
         txt(g, fMono, 9.5f, DX, 430, "uses everything you hear: era, knobs, modules, chain, filters", T.ink);
         txt(g, fMono, 9.5f, DX, 446, "loops wrap seamlessly \xC2\xB7 same length \xC2\xB7 2x quality", T.ink);
+        } // single / bulk
         {
             const Color fc = bakeHover == zOpenFolder ? T.red : T.ink;
             txt(g, fMed, 13.5f, DX, 480, "open bake folder", fc);
@@ -1261,7 +1462,7 @@ private:
         ln(g, LX, 194, LX + LW, 194, T.hair);
         if (bakeItems.empty()) {
             txt(g, fMed, 13.5f, LX + LW / 2, 262, "nothing here yet", T.grey, 1);
-            txt(g, fMono, 9, LX + LW / 2, 284, "baked files show up here, ready to drag", T.grey, 1);
+            txt(g, fMono, 9, LX + LW / 2, 284, "baked and captured files show up here, ready to drag", T.grey, 1);
         }
         int firstDone = -1;
         for (int k = S.bakeScroll; k < (int)bakeItems.size() && k < S.bakeScroll + kBakeRows; ++k)
@@ -1283,7 +1484,7 @@ private:
             // status
             if (it.state == Baker::kWaiting) ro(g, LX, ry + 6, 9, 9, T.grey, 1.2f);
             else if (it.state == Baker::kBaking) rc(g, LX, ry + 6, 9, 9, T.red);
-            else if (isDone) rc(g, LX, ry + 6, 9, 9, tc);
+            else if (isDone) rc(g, LX, ry + 6, 9, 9, it.capture && !lit ? T.red : tc);
             else { ln(g, LX, ry + 7, LX + 9, ry + 16, T.red, 1.5f); ln(g, LX, ry + 16, LX + 9, ry + 7, T.red, 1.5f); }
             std::string nm = fitText(f550, 15, it.name, isDone ? 196.f : 250.f);
             txt(g, f550, 15, LX + 20, ry + 4, nm.c_str(), tc);
@@ -1312,7 +1513,7 @@ private:
             const float frac = (float)kBakeRows / bakeItems.size(), pos = (float)S.bakeScroll / std::max(1, maxs);
             rc(g, tx - 1.5f, ty + pos * th * (1 - frac), 3, th * frac, T.ink);
         }
-        std::snprintf(b, sizeof b, "fig. 04 \xE2\x80\x94 %d file%s \xC2\xB7 %d baked \xC2\xB7 %d in progress", (int)bakeItems.size(),
+        std::snprintf(b, sizeof b, "fig. 04 \xE2\x80\x94 %d file%s \xC2\xB7 %d ready \xC2\xB7 %d in progress", (int)bakeItems.size(),
                       bakeItems.size() == 1 ? "" : "s", done, baking);
         txt(g, fMono, 8.5f, LX, 404, b, T.ink);
         // ---- bulk: export the whole batch to its own folder on the desktop
@@ -2553,6 +2754,13 @@ private:
                 cells(g, 818, 548, kStep2, 2, 5, T.yellow);
                 if (hov || S.bakeOpen) ro(g, 744, 548, 74, 26, T.onMint, 1.f);
                 txt(g, fSemi, 14, 756, 554, "bake", T.onMint);
+                {
+                    const int cs = S.capture.state();
+                    if (cs == Capture::kArmed || cs == Capture::kRec || cs == Capture::kStopReq) {
+                        g.beginPath(); g.circle(745, 549, 4.5f); g.fillColor(T.paper); g.fill();
+                        g.beginPath(); g.circle(745, 549, 3.2f); g.fillColor(cs == Capture::kArmed ? alpha(T.red, .55f) : T.red); g.fill();
+                    }
+                }
                 const float d = S.bakeOpen ? 1.f : -1.f;
                 const float xs[3] = {795, 800, 805}, ys[3] = {561.5f - 2.5f * d, 561.5f + 2.5f * d, 561.5f - 2.5f * d};
                 poly(g, xs, ys, 3, T.onMint, 1.5f);
