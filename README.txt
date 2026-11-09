@@ -253,26 +253,29 @@ Starting points (suggestions):
 
 INSTALL - WINDOWS
 -----------------
-0. Before unzipping: right-click the zip > Properties > tick "Unblock" > OK.
-1. Close FL Studio.
-2. VST3: copy the "Mercy.vst3" folder from VST3\ into
-       C:\Program Files\Common Files\VST3\   (replace the old one)
-3. CLAP (optional, FL Studio 2024+): copy "Mercy.clap" from CLAP\ into
-       C:\Program Files\Common Files\CLAP\
+1. Close your DAW.
+2. Double-click "Install MERCY.exe". If Windows says "Windows protected your
+   PC", click More info > Run anyway.
+3. Keep VST3 and CLAP ticked (or untick the one you don't use) > Install.
 4. Open FL Studio: Options > Manage plugins > Find installed plugins.
+Uninstall: Settings > Apps > Installed apps > MERCY (slapworx).
+By hand instead: copy the files in "manual install" to
+C:\Program Files\Common Files\VST3\ and ...\CLAP\ (unblock the zip first:
+right-click > Properties > Unblock).
 
 
 INSTALL - MAC (Apple Silicon: M1 or newer)
 ------------------------------------------
 1. Quit your DAW.
-2. In Finder press Shift+Cmd+G and go to  ~/Library/Audio/Plug-Ins
-3. Copy "Mercy.component" into the Components folder (AU: Logic,
-   GarageBand), "Mercy.vst3" into the VST3 folder and, if your DAW uses
-   CLAP, "Mercy.clap" into the CLAP folder (make it if it isn't there).
-4. Open your DAW. Logic / GarageBand: MERCY is under
-   Audio Units > slapworx > Mercy. Logic checks new plugins the first
-   time it starts; if MERCY doesn't appear, open Logic > Settings >
-   Plug-in Manager, select it and click "Reset & Rescan Selection".
+2. Double-click "Install MERCY.pkg". If macOS can't check it, right-click it
+   > Open > Open.
+3. Continue, keep Audio Unit / VST3 / CLAP ticked > Install (your Mac
+   password).
+4. Open your DAW. Logic / GarageBand: Audio Units > slapworx > Mercy. If it
+   doesn't appear: Logic > Settings > Plug-in Manager > select it >
+   "Reset & Rescan Selection".
+By hand instead: copy the files in "manual install" to /Library/Audio/Plug-Ins/
+(Components, VST3, CLAP).
 Intel Macs aren't supported.
 
 

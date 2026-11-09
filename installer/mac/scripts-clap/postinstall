@@ -1,0 +1,10 @@
+#!/bin/sh
+# One copy only: remove an older MERCY that was copied by hand into the current user's own plugin folder
+# (the installer puts MERCY in /Library/Audio/Plug-Ins for all users), so the DAW doesn't list it twice.
+U=$(stat -f%Su /dev/console 2>/dev/null)
+if [ -n "$U" ] && [ "$U" != "root" ]; then
+  H=$(dscl . -read "/Users/$U" NFSHomeDirectory 2>/dev/null | awk '{print $2}')
+  [ -n "$H" ] && rm -rf "$H/Library/Audio/Plug-Ins/CLAP/Mercy.clap"
+fi
+killall -9 AudioComponentRegistrar >/dev/null 2>&1 || true   # the system picks up the new Audio Unit without a restart
+exit 0

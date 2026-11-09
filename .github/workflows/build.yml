@@ -42,7 +42,7 @@ jobs:
       - name: Install tools
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq mingw-w64 libgl-dev libx11-dev libxext-dev libxrandr-dev libxcursor-dev xvfb pkg-config python3-pil zip
+          sudo apt-get install -y -qq mingw-w64 libgl-dev libx11-dev libxext-dev libxrandr-dev libxcursor-dev xvfb pkg-config python3-pil zip nsis
           sudo update-alternatives --set x86_64-w64-mingw32-gcc /usr/bin/x86_64-w64-mingw32-gcc-posix
           sudo update-alternatives --set x86_64-w64-mingw32-g++ /usr/bin/x86_64-w64-mingw32-g++-posix
       - name: Linux build (tests and the reference screenshots only)

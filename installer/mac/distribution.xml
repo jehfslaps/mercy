@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<installer-gui-script minSpecVersion="2">
+    <title>MERCY @VERSION@</title>
+    <welcome file="welcome.html" mime-type="text/html"/>
+    <conclusion file="conclusion.html" mime-type="text/html"/>
+    <options customize="always" require-scripts="false" hostArchitectures="arm64"/>
+    <domains enable_anywhere="false" enable_currentUserHome="false" enable_localSystem="true"/>
+    <volume-check><allowed-os-versions><os-version min="11.0"/></allowed-os-versions></volume-check>
+    <choices-outline>
+        <line choice="au"/>
+        <line choice="vst3"/>
+        <line choice="clap"/>
+    </choices-outline>
+    <choice id="au" title="Audio Unit" description="For Logic Pro and GarageBand. Installs Mercy.component in /Library/Audio/Plug-Ins/Components."><pkg-ref id="com.slapworx.mercy.au"/></choice>
+    <choice id="vst3" title="VST3" description="For Ableton Live, FL Studio, Cubase, Studio One and most other DAWs. Installs Mercy.vst3 in /Library/Audio/Plug-Ins/VST3."><pkg-ref id="com.slapworx.mercy.vst3"/></choice>
+    <choice id="clap" title="CLAP" description="For DAWs that load CLAP plugins (Bitwig, REAPER, FL Studio 2024 and newer). Installs Mercy.clap in /Library/Audio/Plug-Ins/CLAP."><pkg-ref id="com.slapworx.mercy.clap"/></choice>
+    <pkg-ref id="com.slapworx.mercy.au" version="@VERSION@" onConclusion="none">mercy_au.pkg</pkg-ref>
+    <pkg-ref id="com.slapworx.mercy.vst3" version="@VERSION@" onConclusion="none">mercy_vst3.pkg</pkg-ref>
+    <pkg-ref id="com.slapworx.mercy.clap" version="@VERSION@" onConclusion="none">mercy_clap.pkg</pkg-ref>
+</installer-gui-script>

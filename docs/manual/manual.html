@@ -112,7 +112,7 @@ ul.dash li::before { content: ""; position: absolute; left: 0; top: 2.3mm; width
   <div class="num">fig. 01 — contents</div>
   <h1>inside.</h1>
   <div class="toc">
-    <div class="row"><div class="a">01</div><div>install<span class="d">windows, mac, and finding MERCY in your DAW</span></div><div class="c">03</div></div>
+    <div class="row"><div class="a">01</div><div>install<span class="d">the installers for windows and mac, and finding MERCY in your DAW</span></div><div class="c">03</div></div>
     <div class="row"><div class="a">02</div><div>quick start<span class="d">a good sound in a minute</span></div><div class="c">04</div></div>
     <div class="row"><div class="a">03</div><div>the three eras<span class="d">fantasy, throne, yeezus</span></div><div class="c">05</div></div>
     <div class="row"><div class="a">04</div><div>the main page<span class="d">squash, dirt, age, meters, filters, the bottom bar</span></div><div class="c">06</div></div>
@@ -134,23 +134,23 @@ ul.dash li::before { content: ""; position: absolute; left: 0; top: 2.3mm; width
   <h1>install.</h1>
   <h2>windows <span class="tag">64-bit · VST3 + CLAP</span></h2>
   <ol class="steps">
-    <li><b>Unblock the zip first.</b> Right-click the zip › Properties › tick <b>Unblock</b> › OK. Then unzip it.</li>
     <li>Close your DAW.</li>
-    <li><b>VST3:</b> copy the <code>Mercy.vst3</code> folder from <code>VST3\</code> into <code>C:\Program Files\Common Files\VST3\</code>. Replace the old one if you're updating.</li>
-    <li><b>CLAP</b> (optional, for DAWs that load CLAP, like FL Studio 2024 and newer): copy <code>Mercy.clap</code> from <code>CLAP\</code> into <code>C:\Program Files\Common Files\CLAP\</code>.</li>
-    <li>Windows asks for administrator permission when you paste into Program Files: click <b>Continue</b>.</li>
-    <li>Open your DAW and scan for new plugins. FL Studio: <b>Options › Manage plugins › Find installed plugins</b>.</li>
+    <li>Unzip the download and double-click <b>Install MERCY.exe</b>.</li>
+    <li>If Windows shows <b>"Windows protected your PC"</b>, click <b>More info</b>, then <b>Run anyway</b>. Then click <b>Yes</b> when Windows asks to allow changes.</li>
+    <li>Click <b>Next</b>, keep <b>VST3</b> and <b>CLAP</b> ticked (or untick the one you don't use), then <b>Install</b>.</li>
+    <li>Open your DAW and scan for new plugins. FL Studio: <b>Options › Manage plugins › Find installed plugins</b>. MERCY is listed under <b>slapworx</b>.</li>
   </ol>
+  <p>To remove MERCY: <b>Settings › Apps › Installed apps › MERCY (slapworx) › Uninstall</b>. Your presets and bakes are kept.</p>
   <h2>mac <span class="tag">apple silicon (m1 and newer) · AU + VST3 + CLAP</span></h2>
   <ol class="steps">
     <li>Quit your DAW.</li>
-    <li>In Finder press <span class="k">Shift + Cmd + G</span> and go to <code>~/Library/Audio/Plug-Ins</code>.</li>
-    <li>Copy <code>Mercy.component</code> into <b>Components</b> (AU: Logic Pro, GarageBand), <code>Mercy.vst3</code> into <b>VST3</b>, and, if your DAW uses CLAP, <code>Mercy.clap</code> into <b>CLAP</b> (make the folder if it isn't there).</li>
-    <li>Open your DAW. In Logic and GarageBand, MERCY is under <b>Audio Units › slapworx › Mercy</b>. Logic checks new plugins the first time it starts.</li>
+    <li>Unzip the download and double-click <b>Install MERCY.pkg</b>.</li>
+    <li>If macOS says it can't check the installer, <b>right-click</b> (or Control-click) it, choose <b>Open</b>, then <b>Open</b> again.</li>
+    <li>Click <b>Continue</b>. On the next screen, keep <b>Audio Unit</b>, <b>VST3</b> and <b>CLAP</b> ticked, or untick what you don't use. Click <b>Install</b> and enter your Mac password.</li>
+    <li>Open your DAW. In Logic Pro and GarageBand, MERCY is under <b>Audio Units › slapworx › Mercy</b>.</li>
   </ol>
-  <div class="note"><b>If macOS says MERCY can't be opened</b> or your DAW won't load it, open Terminal, paste this line and press Return, then reopen your DAW:
-  <pre>xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/Components/Mercy.component ~/Library/Audio/Plug-Ins/VST3/Mercy.vst3 ~/Library/Audio/Plug-Ins/CLAP/Mercy.clap</pre>
-  It removes the "downloaded from the internet" flag from the three plugins. Nothing else changes.</div>
+  <div class="note"><b>Installing by hand</b> instead? The plain plugin files are in the <b>manual install</b> folder. Windows: copy <code>Mercy.vst3</code> into <code>C:\Program Files\Common Files\VST3\</code> and <code>Mercy.clap</code> into <code>C:\Program Files\Common Files\CLAP\</code> (unblock the zip first: right-click › Properties › Unblock). Mac: copy them into <code>/Library/Audio/Plug-Ins/</code> (Components, VST3, CLAP). If macOS then won't open them, run this in Terminal:
+  <pre>sudo xattr -dr com.apple.quarantine /Library/Audio/Plug-Ins/Components/Mercy.component /Library/Audio/Plug-Ins/VST3/Mercy.vst3 /Library/Audio/Plug-Ins/CLAP/Mercy.clap</pre></div>
   <p>Intel Macs aren't supported. MERCY sounds exactly the same on Windows and Mac: every build is checked so both render bit-identical audio, and presets and projects move between them freely.</p>
   <div class="foot"><span>mercy · user manual</span><span>03</span></div>
 </section>
@@ -490,9 +490,10 @@ ul.dash li::before { content: ""; position: absolute; left: 0; top: 2.3mm; width
   <h1>help.</h1>
   <table>
     <tr><th>if</th><th>try</th></tr>
-    <tr><td>MERCY doesn't show up</td><td>Check the plugin is in the right folder (page 03), then rescan. FL Studio: Options › Manage plugins › Find installed plugins. Logic: Settings › Plug-in Manager, select MERCY › Reset &amp; Rescan Selection.</td></tr>
-    <tr><td>Windows blocks it</td><td>Unblock the zip before unzipping (right-click › Properties › Unblock), then copy the plugin again.</td></tr>
-    <tr><td>macOS blocks it</td><td>Run the Terminal line on page 03, then reopen your DAW.</td></tr>
+    <tr><td>MERCY doesn't show up</td><td>Run the installer again (close your DAW first), then rescan. FL Studio: Options › Manage plugins › Find installed plugins. Logic: Settings › Plug-in Manager, select MERCY › Reset &amp; Rescan Selection.</td></tr>
+    <tr><td>Windows blocks the installer</td><td>On "Windows protected your PC", click More info › Run anyway.</td></tr>
+    <tr><td>macOS blocks the installer</td><td>Right-click Install MERCY.pkg › Open › Open.</td></tr>
+    <tr><td>"couldn't be replaced"</td><td>The plugin is in use: close your DAW completely and run the installer again.</td></tr>
     <tr><td>Keys don't work in your DAW</td><td>While a name box or typed value is open, MERCY takes the keyboard. Press Enter or Esc and your DAW's shortcuts come back.</td></tr>
     <tr><td>The master clips</td><td>Pull output down, or lower dirt and clip amount.</td></tr>
     <tr><td>Drag and drop doesn't work</td><td>Use "or browse" to load files and "open bake folder" to grab the results.</td></tr>
