@@ -2477,7 +2477,7 @@ private:
         g.save(); g.translate(34, 590); g.rotate(-1.5707963f);
         txt(g, fMono, 10.5f, 0, 0, "drum processor", T.grey, 0, .14f);
         g.restore();
-        txt(g, fMono, 8.5f, 104, 14, "mercy / drum processor / v2.0", T.ink);
+        txt(g, fMono, 8.5f, 104, 14, "mercy / drum processor / v2.1", T.ink);
 #ifdef MERCY_TEASER
         scribble(g, 105, 15, 103 + measureText(fMono, 8.5f, "mercy", defaultSpacing(fMono)), 26, 3.2f, 12);
 #endif

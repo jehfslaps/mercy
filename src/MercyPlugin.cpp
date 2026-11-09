@@ -21,15 +21,15 @@ protected:
 #ifdef MERCY_TEASER
     const char* getLabel() const override { return "000"; }
     const char* getDescription() const override { return "Drum processor."; }
-    const char* getHomePage() const override { return "https://slapworx.com"; }
+    const char* getHomePage() const override { return "https://slapworx.net"; }
 #else
     const char* getLabel() const override { return "Mercy"; }
     const char* getDescription() const override { return "Drum break compression, saturation and lo-fi grit."; }
-    const char* getHomePage() const override { return "https://mercy.audio"; }
+    const char* getHomePage() const override { return "https://slapworx.net"; }
 #endif
     const char* getMaker() const override { return "slapworx"; }
     const char* getLicense() const override { return "Proprietary"; }
-    uint32_t getVersion() const override { return d_version(2, 0, 0); }
+    uint32_t getVersion() const override { return d_version(2, 1, 0); }
 
     void initParameter(uint32_t index, Parameter& p) override
     {

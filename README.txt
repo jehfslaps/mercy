@@ -1,6 +1,23 @@
 MERCY  -  drum processor
-version 2.0  -  Windows 64-bit (VST3 + CLAP)  -  Mac, Apple Silicon (VST3 + AU + CLAP)
+version 2.1  -  Windows 64-bit (VST3 + CLAP)  -  Mac, Apple Silicon (VST3 + AU + CLAP)
 
+
+WHAT'S NEW IN 2.1
+-----------------
+- INSTALLERS. "Install MERCY.exe" (Windows) and "Install MERCY.pkg" (Mac)
+  put everything in the right place; pick the formats you want. The plain
+  plugin files are still in "manual install".
+- CAPTURE. A new tab in the bake panel: grab the last 1-16 bars you just
+  heard, or record from the next bar line. Snapped to your DAW's bars, so
+  loops come out whole.
+- PRESETS IN GROUPS: start, punch, grit, low end, space, gated, eras. The bar
+  under the title jumps to a group.
+- FLUID MOTION. Pages, panels, lists, sliders and the light / dark switch
+  all move smoothly now (off if your system asks for reduced motion).
+- Clicking an era tab sets the verb up for that era but no longer switches
+  it on.
+- A user manual (MERCY_User_Manual.pdf) comes in the download.
+- Homepage: slapworx.net
 
 WHAT'S NEW IN 2.0
 -----------------
