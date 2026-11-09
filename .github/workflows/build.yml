@@ -3,6 +3,8 @@ name: build
 # Every push builds Windows (VST3 + CLAP) and Mac (VST3 + AU + CLAP, Apple Silicon), checks the plugins,
 # and proves Windows and Mac sound bit-identical and look the same.
 # Downloads: the "Latest build" release on the repo page (Mercy Windows + Mac zips, 000 teaser zip).
+# It is a DRAFT release: the repo is public (free Actions minutes), but drafts are only visible to the owner,
+# so the builds are not downloadable by the public.
 # Nothing here uses Actions artifact storage (it filled up and stays blocked for the month): files pass
 # between jobs through the Actions cache, and the zips go to the release.
 on:
@@ -14,13 +16,22 @@ permissions:
   contents: write   # to publish the zips to the "Latest build" release
 
 env:
-  VERSION: "2.0"
+  VERSION: "2.1"
   WIN: >-
     BUILD_DIR_SUFFIX=-win DPF_BUILD_DIR=../build/win DPF_TARGET_DIR=../bin/win
     CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++ AR=x86_64-w64-mingw32-ar WINDRES=x86_64-w64-mingw32-windres
   LIN: BUILD_DIR_SUFFIX= DPF_BUILD_DIR=../build/linux DPF_TARGET_DIR=../bin/linux
 
 jobs:
+  # ---------------------------------------------------------------------------------------- keep the downloads private
+  hide-downloads:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - run: gh release edit latest-build --draft=true -R "$GITHUB_REPOSITORY" || true
+
   # ---------------------------------------------------------------------------------------- Windows build (+ Linux test build)
   windows-build:
     runs-on: ubuntu-24.04
@@ -61,7 +72,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release view latest-build >/dev/null 2>&1 || gh release create latest-build --prerelease --title "Latest build" --notes "Built automatically from every push." || true
+          gh release view latest-build >/dev/null 2>&1 || gh release create latest-build --draft --prerelease --title "Latest build" --notes "Built automatically from every push." || true
+          gh release edit latest-build --draft=true || true   # downloads stay private (drafts: only you see them)
           gh release upload latest-build out/Mercy_v*_Windows.zip out/000_Windows.zip --clobber
           gh release edit latest-build --notes "Built automatically from commit ${GITHUB_SHA::7} ($(date -u '+%Y-%m-%d %H:%M UTC'))." || true
       - uses: actions/cache/save@v4
@@ -150,7 +162,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release view latest-build >/dev/null 2>&1 || gh release create latest-build --prerelease --title "Latest build" --notes "Built automatically from every push." || true
+          gh release view latest-build >/dev/null 2>&1 || gh release create latest-build --draft --prerelease --title "Latest build" --notes "Built automatically from every push." || true
+          gh release edit latest-build --draft=true || true   # downloads stay private (drafts: only you see them)
           gh release upload latest-build out/Mercy_v*_Mac.zip --clobber
           gh release edit latest-build --notes "Built automatically from commit ${GITHUB_SHA::7} ($(date -u '+%Y-%m-%d %H:%M UTC'))." || true
       - uses: actions/cache/save@v4
