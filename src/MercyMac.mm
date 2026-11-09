@@ -165,4 +165,9 @@ void keyboardFocus(uintptr_t nativeWindow, bool grab) {
     }
 }
 
+// System Settings > Accessibility > Display > Reduce motion
+bool osReduceMotion() {
+    return [[NSWorkspace sharedWorkspace] accessibilityDisplayShouldReduceMotion];
+}
+
 } // namespace mercy

@@ -198,6 +198,13 @@ void keyboardFocus(uintptr_t nativeWindow, bool grab) {
     if (GetFocus() == h) { HWND p = GetParent(h); SetFocus(p); }
 }
 
+// Settings > Accessibility > Visual effects > Animation effects (off = reduce motion)
+bool osReduceMotion() {
+    BOOL on = TRUE;
+    if (!SystemParametersInfoW(SPI_GETCLIENTAREAANIMATION, 0, &on, 0)) return false;
+    return on == FALSE;
+}
+
 } // namespace mercy
 
 #elif !defined(__APPLE__) // ----------------------------------------------------------------------------- Linux (tests)
@@ -208,6 +215,7 @@ void dndRemove(void*) {}
 bool dndStartFileDrag(uintptr_t, const std::vector<std::string>&) { return false; }
 bool dndSupported() { return false; }
 void keyboardFocus(uintptr_t, bool) {}
+bool osReduceMotion() { return false; }
 }
 
 #endif

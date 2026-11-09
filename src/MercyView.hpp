@@ -7,6 +7,7 @@
 #include "MercyBake.hpp"
 #include "MercySession.hpp"
 #include "MercyPresets.hpp"
+#include "MercyMotion.hpp"
 #include "font_mercy.h"
 #include "logo_slapworx.h"
 #include <memory>
@@ -42,6 +43,7 @@ struct ViewHost {
     virtual bool hostStartDrag(const std::vector<std::string>&) { return false; }
     virtual void hostSetUiState(const char*) {}
     virtual void hostKeyboardFocus(bool /*grab*/) {}
+    virtual bool hostReduceMotion() { return false; }   // the OS asks for less motion
 };
 
 static constexpr float kW = 960.f, kH = 600.f;
@@ -50,6 +52,14 @@ static constexpr float kW = 960.f, kH = 600.f;
 // theme: paper / ink, flat saturated blocks
 
 static inline Color rgb(int hex, float a = 1.f) { return Color((hex >> 16) & 255, (hex >> 8) & 255, hex & 255, a); }
+static inline Color mixc(const Color& a, const Color& b, float t) {
+    if (t <= 0.f) return a;
+    if (t >= 1.f) return b;
+    Color c = a;
+    c.red = a.red + (b.red - a.red) * t; c.green = a.green + (b.green - a.green) * t;
+    c.blue = a.blue + (b.blue - a.blue) * t; c.alpha = a.alpha + (b.alpha - a.alpha) * t;
+    return c;
+}
 
 struct Theme {
     Color paper, paper2, side, ink, ink2, grey, hair, hair2, scan, blue, violet, red, pink, mint, yellow, orange, dim,
@@ -271,6 +281,7 @@ struct Ctl {
     float x = 0, y = 0, w = 0, h = 0; // hit rect
     float a = 0, b = 0, c = 0;        // geometry
     int id = 0;                       // option value / button id / stage / style
+    int stage = -1;                   // advanced page: the module this control belongs to (it moves with it)
     std::string label;
     bool contains(float px, float py) const { return px >= x && px <= x + w && py >= y && py <= y + h; }
 };
@@ -327,43 +338,165 @@ public:
         // live specimen: repaint whenever new audio has been scanned
         const uint32_t sp = S.scope.pos.load(std::memory_order_acquire);
         if (sp != lastScopePos) { lastScopePos = sp; if (S.page == 0) host->hostRepaint(); }
+        if (mo.isMoving()) host->hostRepaint();   // something is still settling: keep the frames coming
     }
 
     // ---------------------------------------------------------------- drawing
     void draw(NanoVG& g, float width, float height) {
         ensureResources(g);
-        T = makeTheme(S.dark);
+        mo.step();
+        if (rmCheck++ % 120 == 0) mo.reduced = host->hostReduceMotion();
         scale = std::min(width / kW, height / kH);
         offX = (width - kW * scale) * 0.5f;
         offY = (height - kH * scale) * 0.5f;
+        frameMotion();
+        // light <-> dark: the new theme fades in over the old one (drawn twice only while it changes)
+        const float m = themeMix;
+        if (m < 0.999f) drawScene(g, width, height, false, 1.f);
+        if (m > 0.001f) drawScene(g, width, height, true, m < 0.999f ? m : 1.f);
+        T = makeTheme(S.dark);
+    }
 
-        g.beginPath(); g.rect(0, 0, width, height); g.fillColor(T.side); g.fill();
+    // one complete picture of the interface in one theme
+    void drawScene(NanoVG& g, float width, float height, bool darkPass, float a) {
+        dk = darkPass;
+        T = makeTheme(dk);
+        alphaBase = a;
         g.save();
+        g.globalAlpha(a);
+        g.beginPath(); g.rect(0, 0, width, height); g.fillColor(T.side); g.fill();
         g.translate(offX, offY);
         g.scale(scale, scale);
 
         rc(g, 0, 0, kW, kH, T.paper);
         drawChrome(g);
-        if (S.page == 0) drawMainArt(g); else drawAdvancedArt(g);
-
-        for (size_t i = 0; i < ctls.size(); ++i) drawCtl(g, ctls[i], (int)i);
-        if (S.page == 0) drawFaderGuide(g);
-
-        if (S.page == 1 && reorderFrom >= 0 && reorderMoved) drawReorderGhost(g);
+        const size_t nc = ctls.size();
+        for (size_t i = 0; i < nc && i < 5; ++i) drawCtlM(g, (int)i);   // tabs, theme switch
+        {   // the page: slides and fades in when it changes
+            g.save();
+            g.intersectScissor(84.5f, 31, kW - 84.5f, kH - 31);
+            g.globalAlpha(alphaBase * clampf(pageAlpha, 0, 1));
+            g.translate(pageOffX, 0);
+            if (S.page == 0) drawMainArt(g); else drawAdvancedArt(g);
+            for (size_t i = 5; i + 1 < nc; ++i) drawCtlM(g, (int)i);
+            if (S.page == 0) drawFaderGuide(g);
+            if (S.page == 1 && reorderFrom >= 0 && reorderMoved) drawReorderGhost(g);
+            g.restore();
+        }
+        if (nc > 5) drawCtlM(g, (int)nc - 1);   // resize grip
         drawBrandMark(g);
-        if (presetOpen) drawPresetPopup(g);
-        if (S.page == 1 && S.bakeOpen) drawBakePanel(g);
-        if (modOpen >= 0) drawModulePopup(g);
-        if (nameOpen) drawNamePopup(g);
+
+        if (panelBegin(g, 0, presetOpen, 160, 557, 0, T.dim)) { drawPresetPopup(g); g.restore(); }
+        if (panelBegin(g, 1, S.page == 1 && S.bakeOpen, 781, 561, 1, T.dim)) { drawBakePanel(g); g.restore(); }
+        if (modOpen >= 0) modShown = modOpen;
+        if (panelBegin(g, 2, modOpen >= 0, modOX, modOY, 0, alpha(T.dim, .8f)) && modShown >= 0) {
+            const int keep = modOpen; modOpen = modShown; drawModulePopup(g); modOpen = keep; g.restore();
+        }
+        if (panelBegin(g, 3, nameOpen, nameMode == 0 ? 259.f : kNX + kNW * .5f, nameMode == 0 ? 557.f : kNY + kNH * .5f, 0,
+                       presetOpen ? alpha(T.dim, .6f) : T.dim)) { drawNamePopup(g); g.restore(); }
 
         // print grain over everything
-        const NanoImage& gi = S.dark ? grainDark : grainLight;
+        const NanoImage& gi = dk ? grainDark : grainLight;
         if (gi.isValid()) {
+            g.globalAlpha(a);
             g.beginPath(); g.rect(0, 0, kW, kH);
             g.fillPaint(g.imagePattern(0, 0, 128, 128, 0, gi, 1.0f));
             g.fill();
         }
         g.restore();
+    }
+
+    // ---------------------------------------------------------------- motion
+    // everything that moves is a spring (MercyMotion.hpp); this works out where things are this frame
+    Motion mo;
+    uint32_t rmCheck = 0, layoutGen = 0;
+    bool dk = true;                 // the theme being drawn (both, while the theme changes)
+    float alphaBase = 1.f, themeMix = 1.f, pageOffX = 0, pageAlpha = 1, pageW = 0;
+    float eraW[3] = {1, 0, 0};
+    float stOffX[kNumStages] = {}, stOffY[kNumStages] = {};
+    int lastPage = -1, pressIdx = -1, modShown = -1, curStage = -1, tentOrder[kNumStages] = {};
+    float modOX = 0, modOY = 0;
+
+    void frameMotion() {
+        themeMix = clampf(mo.to(mkey(7, 0), S.dark ? 1.f : 0.f, kSpringFade), 0, 1);
+        const int era = (int)std::lround(S.values[pEra]);
+        float sum = 0;
+        for (int e = 0; e < 3; ++e) { eraW[e] = clampf(mo.to(mkey(2, (uint32_t)e), e == era ? 1.f : 0.f, kSpringFade), 0, 1); sum += eraW[e]; }
+        if (sum > 1e-4f) for (int e = 0; e < 3; ++e) eraW[e] /= sum; else { eraW[0] = 1; eraW[1] = eraW[2] = 0; }
+        if (S.page != lastPage) {
+            if (lastPage >= 0) {
+                mo.from(mkey(4, 0), S.page == 1 ? 28.f : -28.f, 0, kSpringPage);
+                mo.from(mkey(4, 1), 0, 1, kSpringFade);
+            }
+            lastPage = S.page;
+        }
+        pageOffX = mo.to(mkey(4, 0), 0, kSpringPage);
+        pageAlpha = mo.to(mkey(4, 1), 1, kSpringFade);
+        pageW = clampf(mo.to(mkey(3, 9), S.page == 1 ? 1.f : 0.f, kSpringUI), 0, 1.04f);
+        // modules: each one slides to its slot; while one is dragged the others make room for it
+        std::memcpy(tentOrder, S.order, sizeof tentOrder);
+        if (S.page == 1 && reorderFrom >= 0 && reorderMoved) {
+            const int target = sectionAt(dragX, dragY);
+            if (target >= 0 && target != reorderFrom) {
+                const int moving = S.order[reorderFrom];
+                int k = 0;
+                for (int j = 0; j < kNumStages; ++j) if (j != reorderFrom) tentOrder[k++] = S.order[j];
+                for (int j = kNumStages - 1; j > target; --j) tentOrder[j] = tentOrder[j - 1];
+                tentOrder[target] = moving;
+            }
+        }
+        if (S.page == 1) {
+            int lay[kNumStages];
+            for (int pos = 0; pos < kNumStages; ++pos) lay[S.order[pos]] = pos;
+            for (int pos = 0; pos < kNumStages; ++pos) {
+                const int st = tentOrder[pos];
+                stOffX[st] = mo.to(mkey(9, (uint32_t)st, 0), secXs(pos), kSpringPos) - secXs(lay[st]);
+                stOffY[st] = mo.to(mkey(9, (uint32_t)st, 1), secYs(pos), kSpringPos) - secYs(lay[st]);
+            }
+        }
+    }
+    // a panel grows out of the thing that opened it and fades in; it fades back out when closed.
+    // Leaves a saved state on the stack when it returns true (the caller restores it).
+    bool panelBegin(NanoVG& g, uint32_t id, bool open, float ox, float oy, int dimKind, Color dimC) {
+        const float p = mo.to(mkey(5, id), open ? 1.f : 0.f, open ? kSpringUI : kSpringClose);
+        if (!open && p < 0.004f) return false;
+        const float a = clampf(p, 0, 1);
+        g.save();
+        g.globalAlpha(alphaBase * a);
+        if (dimKind == 1) rc(g, 84.5f, 31, kW - 84.5f, 505, dimC); else rc(g, 84.5f, 31, kW - 84.5f, kH - 31, dimC);
+        const float sc = 0.94f + 0.06f * p;
+        g.translate(ox, oy); g.scale(sc, sc); g.translate(-ox, -oy);
+        return true;
+    }
+    float hoverMix(int idx, bool hov) { return clampf(mo.to(mkey(6, (uint32_t)idx, layoutGen), hov ? 1.f : 0.f, kSpringHover), 0, 1); }
+    // slider positions glide to new values (presets, resets, typed values); a drag and small steady
+    // changes (automation) are followed exactly
+    float dispN(const Ctl& c, int idx) {
+        const float t = toNorm(c.param, S.values[c.param]);
+        const uint64_t k = mkey(1, (uint32_t)c.param);
+        if (idx == dragIdx || mo.reduced || (mo.isSettled(k) && std::fabs(t - mo.target(k, t)) < 0.04f)) { mo.hold(k, t); return t; }
+        return clampf(mo.to(k, t, kSpringUI), 0, 1);
+    }
+    static bool pressable(CtlType t) { return t == tButton || t == tOption || t == tToggle || t == tOnOff || t == tSectionPower || t == tEqPos || t == tTab; }
+    // a control, wherever its module is right now, with a small dip while it is pressed
+    void drawCtlM(NanoVG& g, int i) {
+        const Ctl& c = ctls[(size_t)i];
+        bool saved = false;
+        if (c.stage >= 0 && S.page == 1) {
+            const float dx = stOffX[c.stage], dy = stOffY[c.stage];
+            const bool dragged = reorderFrom >= 0 && reorderMoved && S.order[reorderFrom] == c.stage;
+            if (dx != 0 || dy != 0 || dragged) { g.save(); saved = true; g.translate(dx, dy); if (dragged) g.globalAlpha(alphaBase * pageAlpha * .4f); }
+        }
+        if (pressable(c.type)) {
+            const float pr = mo.to(mkey(10, (uint32_t)i, layoutGen), i == pressIdx ? 1.f : 0.f, kSpringPress);
+            if (pr > 0.002f) {
+                if (!saved) { g.save(); saved = true; }
+                const float cx = c.x + c.w * .5f, cy = c.y + c.h * .5f, k = 1.f - 0.05f * pr;
+                g.translate(cx, cy); g.scale(k, k); g.translate(-cx, -cy);
+            }
+        }
+        drawCtl(g, c, i);
+        if (saved) g.restore();
     }
 
     // ---------------------------------------------------------------- input (window coords)
@@ -375,6 +508,7 @@ public:
     bool mouseImpl(int button, bool press, float wx, float wy, unsigned mod, unsigned timeMs) {
         const float x = (wx - offX) / scale, y = (wy - offY) / scale;
         if (press && editIdx >= 0) { commitEdit(); }
+        if (button == 1 && !press && pressIdx >= 0) { pressIdx = -1; host->hostRepaint(); }
         if (nameOpen) { if (press && button == 1) nameClick(x, y); return true; }
         if (presetOpen) { if (press) popupClick(button, x, y); return true; }
         if (modOpen >= 0) { if (press) modClick(x, y); return true; }
@@ -429,11 +563,20 @@ public:
         const float x = (wx - offX) / scale, y = (wy - offY) / scale;
         if (modOpen >= 0) return true;
         if (S.page == 1 && S.bakeOpen && x >= kBX && x <= kBX + kBW && y >= kBY && y <= kBY + kBH) {
-            if (x >= kLX - 12) { S.bakeScroll = std::max(0, std::min(S.bakeScroll + (dy > 0 ? -1 : 1), std::max(0, (int)bakeItems.size() - kBakeRows))); host->hostRepaint(); }
+            if (x >= kLX - 12) {
+                const int want = S.bakeScroll + (dy > 0 ? -1 : 1), ns = std::max(0, std::min(want, std::max(0, (int)bakeItems.size() - kBakeRows)));
+                if (ns != want && (int)bakeItems.size() > 0) mo.kick(mkey(8, 1), dy > 0 ? -9.f : 9.f);
+                S.bakeScroll = ns; host->hostRepaint();
+            }
             return true;
         }
         if (nameOpen) return true;
-        if (presetOpen) { ctxOpen = false; popScroll = std::max(0, std::min(popScroll + (dy > 0 ? -1 : 1), popMaxScroll())); popHover = -1; popupMotion(x, y); host->hostRepaint(); return true; }
+        if (presetOpen) {
+            ctxOpen = false;
+            const int want = popScroll + (dy > 0 ? -1 : 1), ns = std::max(0, std::min(want, popMaxScroll()));
+            if (ns != want) mo.kick(mkey(8, 0), dy > 0 ? -12.f : 12.f);   // the end of the list gives a little
+            popScroll = ns; popHover = -1; popupMotion(x, y); host->hostRepaint(); return true;
+        }
         const int i = hit(x, y);
         if (i < 0 || !isSlider(ctls[i].type)) return false;
         const Ctl& c = ctls[i];
@@ -622,6 +765,7 @@ private:
         int r = 0;
         for (int i = 0; i < (int)rows.size(); ++i) if (rows[i].a == S.presetIdx || rows[i].b == S.presetIdx) r = i;
         popScroll = std::max(0, std::min(r - kPopRows / 2, popMaxScroll()));
+        mo.hold(mkey(8, 0), (float)popScroll);   // opens already scrolled to the current preset
     }
     static float popCellW() { return (kPopW - 48) / 2; }
     // preset under the mouse (or -1), plus the left edge of its cell and which part of the cell is hit
@@ -709,8 +853,7 @@ private:
         ln(g, x0, y0 + s, x0 + s, y0, c, 1.6f);
     }
     void drawPresetPopup(NanoVG& g) {
-        const float PX = kPopX, PY = kPopY, PW = kPopW, PH = kPopH;
-        rc(g, 84.5f, 31, kW - 84.5f, kH - 31, T.dim);
+        const float PX = kPopX, PY = kPopY, PW = kPopW, PH = kPopH;   // (the dim behind it: panelBegin)
         rc(g, PX, PY, PW, PH, T.paper);
         ro(g, PX, PY, PW, PH, T.ink, 1.5f);
         splitText(g, fWide, 30, PX + 24, PY + 18, "presets.", T.ink);
@@ -724,10 +867,16 @@ private:
         ln(g, PX + 24, PY + 56, PX + PW - 24, PY + 56, T.hair);
         const auto rows = popRows();
         const float lx = PX + 24, ly = PY + 80, cw = popCellW();
-        for (int k = 0; k < kPopRows; ++k) {
-            const int r = k + popScroll;
+        const float fs = mo.to(mkey(8, 0), (float)popScroll, kSpringScroll);   // the list glides between rows
+        const int base = (int)std::floor(fs);
+        const float fr = fs - (float)base;
+        g.save();
+        g.intersectScissor(PX + 2, ly - kPopRowH / 2, PW - 22, kPopRows * kPopRowH);
+        for (int k = 0; k <= kPopRows; ++k) {
+            const int r = k + base;
+            if (r < 0) continue;
             if (r >= (int)rows.size()) break;
-            const float y = ly + k * kPopRowH;
+            const float y = ly + ((float)k - fr) * kPopRowH;
             const PopRow& row = rows[r];
             if (row.header != 0) {
                 const char* h = row.header == -1 ? "factory" : "user";
@@ -759,10 +908,11 @@ private:
                 }
             }
         }
+        g.restore();
         if ((int)rows.size() > kPopRows) {
             const float tx = PX + PW - 14, ty = ly - 10, th = kPopRows * kPopRowH;
             ln(g, tx, ty, tx, ty + th, T.hair2);
-            const float frac = (float)kPopRows / rows.size(), pos = (float)popScroll / std::max(1, popMaxScroll());
+            const float frac = (float)kPopRows / rows.size(), pos = clampf(fs / std::max(1, popMaxScroll()), 0, 1);
             rc(g, tx - 1.5f, ty + pos * th * (1 - frac), 3, th * frac, T.ink);
         }
         if (!userPresets.empty()) txt(g, fMono, 8, PX + 24, PY + PH - 24, "right-click a user preset to rename or delete it", T.grey);
@@ -859,7 +1009,6 @@ private:
         host->hostRepaint();
     }
     void drawNamePopup(NanoVG& g) {
-        rc(g, 84.5f, 31, kW - 84.5f, kH - 31, presetOpen ? alpha(T.dim, .6f) : T.dim);
         rc(g, kNX, kNY, kNW, kNH, T.paper);
         ro(g, kNX, kNY, kNW, kNH, T.ink, 1.5f);
         txt(g, fSemi, 15, kNX + 20, kNY + 16, nameMode == 0 ? "save preset" : "rename preset", T.ink);
@@ -990,7 +1139,8 @@ private:
     static constexpr float kOptFont = 11.5f; // option rows on the advanced page (narrower columns since v2.0)
     void openModule(int st, int pos) {
         const ModPreset* mp; const int n = modPresets(st, mp);
-        modOpen = st; modHover = -1;
+        modOpen = st; modHover = -1; modShown = st;
+        modOX = secX(pos) + 30; modOY = secY(pos) + 22;
         modH = 50 + n * kModRowH + 4;
         modX = clampf(secX(pos) + 3, 84, kW - kModW - 6);
         modY = secY(pos) + 40;
@@ -1016,7 +1166,6 @@ private:
     }
     void drawModulePopup(NanoVG& g) {
         static const char* names[kNumStages] = {"sampler", "preamp", "squash", "tone", "clip", "gate/width", "transient", "shape", "verb", "weight"};
-        rc(g, 84.5f, 31, kW - 84.5f, kH - 31, alpha(T.dim, .8f));
         rc(g, modX, modY, kModW, modH, T.paper);
         ro(g, modX, modY, kModW, modH, T.ink, 1.5f);
         txt(g, fSemi, 15, modX + 16, modY + 13, names[modOpen], T.ink);
@@ -1343,7 +1492,6 @@ private:
     void drawBakePanel(NanoVG& g) {
         const float PX = kBX, PY = kBY, PW = kBW, PH = kBH;
         char b[160];
-        rc(g, 84.5f, 31, kW - 84.5f, 505, T.dim);
         rc(g, PX, PY, PW, PH, T.paper);
         ro(g, PX, PY, PW, PH, T.ink, 1.5f);
         splitText(g, fWide, 30, PX + 24, PY + 18, "bake.", T.ink);
@@ -1467,14 +1615,20 @@ private:
         int firstDone = -1;
         for (int k = S.bakeScroll; k < (int)bakeItems.size() && k < S.bakeScroll + kBakeRows; ++k)
             if (bakeItems[k].state == Baker::kDone) { firstDone = k; break; }
-        for (int r = 0; r < kBakeRows; ++r) {
-            const int i = r + S.bakeScroll;
+        const float fs = mo.to(mkey(8, 1), (float)S.bakeScroll, kSpringScroll);
+        const int base = (int)std::floor(fs);
+        const float fr = fs - (float)base;
+        g.save();
+        g.intersectScissor(LX - 12, 197, LW + 24, kBakeRows * kRowH + 2);
+        for (int r = 0; r <= kBakeRows; ++r) {
+            const int i = r + base;
+            if (i < 0) continue;
             if (i >= (int)bakeItems.size()) break;
             const Baker::Item& it = bakeItems[i];
-            const float ry = 204 + r * kRowH;
+            const float ry = 204 + ((float)r - fr) * kRowH;
             const bool hov = bakeHover == zRow0 + i, isDone = it.state == Baker::kDone;
             const bool lit = isDone && (hov || (bakeHover < zRow0 && i == firstDone));
-            if (r > 0) ln(g, LX, ry - 6, LX + LW, ry - 6, T.hair2);
+            if (r > 0 || fr > 0.01f) ln(g, LX, ry - 6, LX + LW, ry - 6, T.hair2);
             const Color tc = lit ? T.onMint : T.ink, sc = lit ? T.onMint2 : T.grey;
             if (lit) {
                 rc(g, LX - 10, ry - 4, LW + 20, 56, T.mint);
@@ -1506,11 +1660,12 @@ private:
                 arrowRight(g, LX + LW - 42 + tw(fMed, 12.5f, "drag") + 5, ry + 21.5f, 11, dc);
             } else txt(g, fMono, 9.5f, LX + 20, ry + 25, fitText(fMono, 9.5f, it.error, LW - 30).c_str(), T.red);
         }
+        g.restore();
         if ((int)bakeItems.size() > kBakeRows) {
             const float tx = LX + LW + 14, ty = 198, th = kBakeRows * kRowH;
             ln(g, tx, ty, tx, ty + th, T.hair2);
             const int maxs = (int)bakeItems.size() - kBakeRows;
-            const float frac = (float)kBakeRows / bakeItems.size(), pos = (float)S.bakeScroll / std::max(1, maxs);
+            const float frac = (float)kBakeRows / bakeItems.size(), pos = clampf(fs / std::max(1, maxs), 0, 1);
             rc(g, tx - 1.5f, ty + pos * th * (1 - frac), 3, th * frac, T.ink);
         }
         std::snprintf(b, sizeof b, "fig. 04 \xE2\x80\x94 %d file%s \xC2\xB7 %d ready \xC2\xB7 %d in progress", (int)bakeItems.size(),
@@ -1534,13 +1689,13 @@ private:
     static bool isSlider(CtlType t) { return t == tVSlider || t == tDotKnob || t == tHSlider || t == tMini || t == tNumBox || t == tFilter; }
 
     Ctl& add(CtlType t, int param, float x, float y, float w, float h) {
-        Ctl c; c.type = t; c.param = param; c.x = x; c.y = y; c.w = w; c.h = h;
+        Ctl c; c.type = t; c.param = param; c.x = x; c.y = y; c.w = w; c.h = h; c.stage = curStage;
         ctls.push_back(c);
         return ctls.back();
     }
 
     void buildLayout() {
-        ctls.clear();
+        ctls.clear(); ++layoutGen; curStage = -1;
         if (S.page == 0) modOpen = -1; // the bake panel is remembered across pages
         hoverIdx = -1;
         const char* tabNames[4] = {"fantasy", "throne", "yeezus", "advanced"};
@@ -1590,6 +1745,7 @@ private:
         for (int pos = 0; pos < kNumStages; ++pos) {
             const int st = S.order[pos];
             const float sx = secX(pos), sy = secY(pos);
+            curStage = st;
             { Ctl& c = add(tSectionHead, -1, sx + 8, sy + 8, kSecW - 40, 30); c.id = st; c.a = (float)pos; }
             static const uint32_t powerParam[kNumStages] = {pSmpOn, pPreOn, pSqOn, pToneOn, pClipOn, pGwOn, pTrOn, pShOn, pRvOn, pWtOn};
             { Ctl& c = add(tSectionPower, (int)powerParam[st], sx + kSecW - 32, sy + 10, 26, 22); c.id = st; c.a = sx; c.c = sy; }
@@ -1686,6 +1842,7 @@ private:
             }
             figY[pos] = sy + 50 + rows * 25 + 2;
         }
+        curStage = -1;
         { Ctl& c = add(tButton, -1, 852, 546, 94, 28); c.id = bResetOrder; c.label = "reset order"; }
         { Ctl& c = add(tButton, -1, 744, 546, 80, 30); c.id = bBake; c.label = "bake"; }
     }
@@ -1920,6 +2077,7 @@ private:
         const int i = hit(x, y);
         if (i < 0) return false;
         Ctl& c = ctls[i];
+        if (pressable(c.type)) pressIdx = i;
         const bool dbl = (i == lastClickIdx) && (t - lastClickTime < 350);
         lastClickIdx = i; lastClickTime = t;
         switch (c.type) {
@@ -2005,8 +2163,17 @@ private:
     static float secXs(int pos) { return 104.f + (pos % 5) * 168.f; }
     static float secYs(int pos) { return 100.f + (pos / 5) * 214.f; }
 
-    Color acc1() const { const int e = (int)std::lround(S.values[pEra]); return e == 1 ? T.mint : (e == 2 ? T.red : T.blue); }
-    Color acc2() const { const int e = (int)std::lround(S.values[pEra]); return e == 1 ? T.pink : (e == 2 ? T.orange : T.violet); }
+    // era colours (they cross-fade when the era changes)
+    Color eraMix(const Color& c0, const Color& c1, const Color& c2) const {
+        Color c = c0;
+        c.red = c0.red * eraW[0] + c1.red * eraW[1] + c2.red * eraW[2];
+        c.green = c0.green * eraW[0] + c1.green * eraW[1] + c2.green * eraW[2];
+        c.blue = c0.blue * eraW[0] + c1.blue * eraW[1] + c2.blue * eraW[2];
+        c.alpha = c0.alpha * eraW[0] + c1.alpha * eraW[1] + c2.alpha * eraW[2];
+        return c;
+    }
+    Color acc1() const { return eraMix(T.blue, T.mint, T.red); }
+    Color acc2() const { return eraMix(T.violet, T.pink, T.orange); }
     static Color alpha(Color c, float a) { c.alpha *= a; return c; }
 
     void txt(NanoVG& g, int f, float size, float x, float top, const char* s, Color c, int anchor = 0, float spacing = 99.f, float blur = 0.f) {
@@ -2052,9 +2219,9 @@ private:
     // every time for a given spot). Text is drawn first, then this goes on top.
     void scribble(NanoVG& g, float x0, float y0, float x1, float y1, float width, uint32_t seed) {
         Rng r(seed);
-        const Color ink = S.dark ? Color(6, 5, 7, 1.f) : Color(12, 11, 13, 1.f);
+        const Color ink = dk ? Color(6, 5, 7, 1.f) : Color(12, 11, 13, 1.f);
         const Color rim = Color(64, 62, 68, .85f);
-        const Color sheen = S.dark ? Color(255, 255, 255, .13f) : Color(255, 255, 255, .09f);
+        const Color sheen = dk ? Color(255, 255, 255, .13f) : Color(255, 255, 255, .09f);
         const float h = y1 - y0;
         std::vector<float> px, py;
         for (int pass = 0; pass < 2; ++pass) {
@@ -2075,7 +2242,7 @@ private:
             // layers: 0 = rim (where the ink pools at the edge; shows the stroke on the dark theme),
             // 1 = the ink, 2 = a soft glossy sheen along the stroke
             for (int layer = 0; layer < 3; ++layer) {
-                if (layer == 0 && !S.dark) continue;
+                if (layer == 0 && !dk) continue;
                 const float off = layer == 2 ? 1.f : 0.f;
                 g.beginPath();
                 for (size_t i = 0; i < px.size(); ++i) {
@@ -2362,7 +2529,7 @@ private:
     void drawFaderGuide(NanoVG& g) {
         const uint32_t ps[3] = {pSquash, pDirt, pAge};
         float xs[3], ys[3];
-        for (int i = 0; i < 3; ++i) { xs[i] = 182.f + 120.f * i; ys[i] = 324.f - toNorm(ps[i], S.values[ps[i]]) * 164.f; }
+        for (int i = 0; i < 3; ++i) { xs[i] = 182.f + 120.f * i; ys[i] = 324.f - mo.value(mkey(1, ps[i]), toNorm(ps[i], S.values[ps[i]])) * 164.f; }
         dashPoly(g, xs, ys, 3, T.red, 1.f, 2, 3);
     }
 
@@ -2375,6 +2542,9 @@ private:
         for (int pos = 0; pos < kNumStages; ++pos) {
             const int st = S.order[pos];
             const float x = secXs(pos), y = secYs(pos), fx = x + 14, fy = figY[pos];
+            g.save();   // the module's art moves with it (reordering)
+            g.translate(stOffX[st], stOffY[st]);
+            if (reorderFrom >= 0 && reorderMoved && reorderFrom == pos) g.globalAlpha(alphaBase * pageAlpha * .4f);
             const float hx = x + kSecW - 70, hy = y + 20, HW = 40; // small figure beside the name
             switch (st) {
             case kStTransient: {
@@ -2539,6 +2709,7 @@ private:
             } break;
             default: break;
             }
+            g.restore();
         }
         ln(g, 104, 540, 944, 540, T.hair);
         for (int k = 0; k < 3; ++k) ln(g, 104, 556 + k * 5, 118, 556 + k * 5, T.grey, 1.4f);
@@ -2555,23 +2726,27 @@ private:
     // ---------------------------------------------------------------- controls
     void drawCtl(NanoVG& g, const Ctl& c, int idx) {
         const bool hov = idx == hoverIdx, drag = idx == dragIdx, edit = idx == editIdx;
+        const float hv = hoverMix(idx, hov);   // hover highlights fade in and out
         char b[64];
         switch (c.type) {
         case tTab: {
             const int era = (int)std::lround(S.values[pEra]);
             const bool isEra = c.id < 3;
-            const bool selEra = isEra && c.id == era, selPage = !isEra && S.page == 1;
-            const float x = c.a;
+            const float x = c.a, selW = clampf(isEra ? eraW[c.id] : pageW, 0, 1);
             static const char* nums[4] = {"01", "02", "03", "\xE2\x86\x97"};
             txt(g, fMono, 7.5f, x, 41, nums[c.id], T.ink);
-            txt(g, f550, 21, x, 54, c.label.c_str(), (selEra || selPage) ? T.ink : (hov ? T.ink2 : T.grey));
+            txt(g, f550, 21, x, 54, c.label.c_str(), mixc(mixc(T.grey, T.ink2, hv), T.ink, selW));
 #ifdef MERCY_TEASER
             if (isEra) scribble(g, x, 58, x + tw(f550, 21, c.label.c_str()), 78, 5.5f, 20 + (uint32_t)c.id);
 #endif
             static const float uw[4] = {72, 62, 66, 92};
             const float w = uw[c.id];
-            if (selEra) { rc(g, x, 83, w, S.page == 0 ? 3.f : 1.5f, acc1()); cells(g, x + w + 3, 79, kStep2, 2, 4, T.red); }
-            if (selPage) rc(g, x, 83, w, 3, T.red);
+            if (c.id == 0 && era >= 0 && era < 3 && ctls.size() > 3) {   // one underline for the era: it slides from tab to tab
+                const float ux = mo.to(mkey(3, 0), ctls[(size_t)era].a, kSpringUI), uwd = mo.to(mkey(3, 1), uw[era], kSpringUI);
+                const float uh = mo.to(mkey(3, 2), S.page == 0 ? 3.f : 1.5f, kSpringFade);
+                rc(g, ux, 83, uwd, uh, acc1()); cells(g, ux + uwd + 3, 79, kStep2, 2, 4, T.red);
+            }
+            if (!isEra && pageW > 0.002f) rc(g, x, 83, w * std::min(pageW, 1.f), 3, T.red);
         } break;
 
         case tVSlider: {
@@ -2584,13 +2759,13 @@ private:
                 const float yy = bot - 8 - k * (bot - top - 16) / 10.f, l = k % 5 == 0 ? 7.f : 3.5f;
                 ln(g, cx - 16 - l, yy, cx - 16, yy, T.hair);
             }
-            const float hy = bot - 8 - toNorm(c.param, S.values[c.param]) * (bot - top - 16);
+            const float hy = bot - 8 - dispN(c, idx) * (bot - top - 16);
             rc(g, cx - 2, hy, 4, bot - 8 - hy, acc1());
             tonerRect(g, cx - 10, hy - 10, 20, 20, (drag || edit) ? T.red : T.ink);
             txt(g, fMono, 7, cx + 16, hy - 15, coordStr(b, sizeof b, cx, hy), T.ink);
             ln(g, cx + 11, hy - 6, cx + 15, hy - 10, T.hair, .8f);
             if (edit) editBox(g, cx, 352, 1);
-            else txt(g, fMono, 11, cx, 346, fmtValue(c.param, S.values[c.param]).c_str(), (hov || drag) ? T.ink : T.ink2, 1);
+            else txt(g, fMono, 11, cx, 346, fmtValue(c.param, S.values[c.param]).c_str(), (drag ? T.ink : mixc(T.ink2, T.ink, hv)), 1);
         } break;
 
         case tDotKnob: {
@@ -2600,11 +2775,11 @@ private:
             ln(g, cx - 36, y - 6, cx - 36, y + 6, T.ink, 1.3f);
             ln(g, cx + 36, y - 6, cx + 36, y + 6, T.ink, 1.3f);
             dot(g, cx - 18, y, 1.6f, T.grey); dot(g, cx + 18, y, 1.6f, T.grey);
-            const float n = toNorm(c.param, S.values[c.param]);
+            const float n = dispN(c, idx);
             dot(g, cx - 36 + n * 72, y, 6.5f, (drag || edit) ? T.red : T.ink);
             const float v = S.values[c.param];
             if (std::fabs(v) < .05f) std::snprintf(b, sizeof b, "0.0 dB"); else std::snprintf(b, sizeof b, "%+.1f dB", v);
-            if (edit) editBox(g, cx, 442, 1); else txt(g, fMono, 10, cx, 436, b, (hov || drag) ? T.ink : T.ink2, 1);
+            if (edit) editBox(g, cx, 442, 1); else txt(g, fMono, 10, cx, 436, b, (drag ? T.ink : mixc(T.ink2, T.ink, hv)), 1);
         } break;
 
         case tHSlider: { // mix
@@ -2613,11 +2788,11 @@ private:
             ln(g, 264, 409, 264, 427, T.ink, 1.6f);
             ln(g, 340, 409, 340, 427, T.ink, 1.6f);
             ln(g, 270, y, 334, y, T.hair);
-            const float hx = c.a + toNorm(c.param, S.values[c.param]) * (c.b - c.a);
+            const float hx = c.a + dispN(c, idx) * (c.b - c.a);
             rc(g, 270, y - 1.5f, hx - 270, 3, T.ink);
             tonerRect(g, hx - 7, y - 7, 14, 14, (drag || edit) ? T.red : T.ink);
             if (edit) editBox(g, 302, 442, 1);
-            else txt(g, fMono, 10, 302, 436, fmtValue(c.param, S.values[c.param]).c_str(), (hov || drag) ? T.ink : T.ink2, 1);
+            else txt(g, fMono, 10, 302, 436, fmtValue(c.param, S.values[c.param]).c_str(), (drag ? T.ink : mixc(T.ink2, T.ink, hv)), 1);
         } break;
 
         case tMini: {
@@ -2625,12 +2800,12 @@ private:
             const char* lbl = c.label.c_str();
             if (c.param == (int)pShFocus) { static const char* fl[3] = {"tight", "body", "presence"}; lbl = fl[(int)clampf(std::round(S.values[pShMode]), 0, 2)]; }
             if (c.param == (int)pRvDecay && std::lround(S.values[pRvMode]) == 2) lbl = "length";
-            txt(g, fMed, 12.5f, c.x + 4, y - 6, lbl, (hov || drag) ? T.ink : T.ink2);
+            txt(g, fMed, 12.5f, c.x + 4, y - 6, lbl, (drag ? T.ink : mixc(T.ink2, T.ink, hv)));
             ln(g, a, y, bb, y, T.hair);
             ln(g, a, y - 3, a, y + 3, T.hair);
             ln(g, bb, y - 3, bb, y + 3, T.hair);
             const bool bip = c.param == (int)pShAttack || c.param == (int)pShSustain || c.param == (int)pShFocus;
-            const float hx = a + toNorm(c.param, S.values[c.param]) * (bb - a);
+            const float hx = a + dispN(c, idx) * (bb - a);
             if (bip) {
                 const float m = (a + bb) * .5f;
                 ln(g, m, y - 4, m, y + 4, T.hair);
@@ -2638,16 +2813,16 @@ private:
             } else rc(g, a, y - 1, hx - a, 2, T.ink);
             rc(g, hx - 4.5f, y - 4.5f, 9, 9, (drag || edit) ? T.red : T.ink);
             if (edit) editBox(g, (float)c.id, y, 2);
-            else txt(g, fMono, 9.5f, (float)c.id, y - 4.75f, fmtValue(c.param, S.values[c.param]).c_str(), (hov || drag) ? T.ink : T.ink2, 2);
+            else txt(g, fMono, 9.5f, (float)c.id, y - 4.75f, fmtValue(c.param, S.values[c.param]).c_str(), (drag ? T.ink : mixc(T.ink2, T.ink, hv)), 2);
         } break;
 
         case tFilter: {
             const float y = c.c;
-            txt(g, fMed, 12.5f, 664, y - 6, c.label.c_str(), (hov || drag) ? T.ink : T.ink2);
+            txt(g, fMed, 12.5f, 664, y - 6, c.label.c_str(), (drag ? T.ink : mixc(T.ink2, T.ink, hv)));
             ln(g, c.a, y, c.b, y, T.hair);
             ln(g, c.a, y - 3, c.a, y + 3, T.hair);
             ln(g, c.b, y - 3, c.b, y + 3, T.hair);
-            const float hx = c.a + toNorm(c.param, S.values[c.param]) * (c.b - c.a);
+            const float hx = c.a + dispN(c, idx) * (c.b - c.a);
             rc(g, hx - 4.5f, y - 4.5f, 9, 9, (drag || edit) ? T.red : T.ink);
             const std::string v = fmtValue(c.param, S.values[c.param]);
             if (edit) editBox(g, 940, y, 2);
@@ -2655,13 +2830,13 @@ private:
         } break;
 
         case tNumBox: { // transient |-> 100
-            txt(g, fMed, 14.5f, 268, 477, "transient", (hov || drag) ? T.ink : T.ink2);
+            txt(g, fMed, 14.5f, 268, 477, "transient", (drag ? T.ink : mixc(T.ink2, T.ink, hv)));
             ln(g, 334, 474, 334, 494, T.ink, 1.5f);
             ln(g, 338, 484, 352, 484, T.ink, 1.5f);
             const float ax[3] = {347, 352, 347}, ay[3] = {479, 484, 489};
             poly(g, ax, ay, 3, T.ink, 1.5f);
             const bool active = S.values[c.param] < 99.5f;
-            if (active) rc(g, 360, 471, 50, 26, T.red); else ro(g, 360, 471, 50, 26, (hov || drag) ? T.red : T.ink, 1.5f);
+            if (active) rc(g, 360, 471, 50, 26, T.red); else ro(g, 360, 471, 50, 26, (drag ? T.red : mixc(T.ink, T.red, hv)), 1.5f);
             std::snprintf(b, sizeof b, "%d", (int)std::lround(S.values[c.param]));
             if (edit) editBox(g, 385, 512, 1);
             txt(g, fMonoB, 12, 385, 478, b, active ? rgb(0xF4F2F3) : T.ink, 1);
@@ -2674,10 +2849,10 @@ private:
                 ln(g, 104, 474, 104, 494, T.ink, 1.5f);
                 if (onv) rc(g, 112, 478, 12, 12, T.red); else ro(g, 112, 478, 12, 12, T.ink, 1.2f);
                 ln(g, 132, 474, 132, 494, T.ink, 1.5f);
-                txt(g, fMed, 14.5f, 142, 477, "auto gain", hov ? T.ink : T.ink2);
+                txt(g, fMed, 14.5f, 142, 477, "auto gain", mixc(T.ink2, T.ink, hv));
                 ln(g, 212, 474, 212, 494, T.ink, 1.5f);
             } else {
-                txt(g, fMed, 13.5f, 354, 551, "bypass", hov ? T.ink : T.ink2);
+                txt(g, fMed, 13.5f, 354, 551, "bypass", mixc(T.ink2, T.ink, hv));
                 if (onv) rc(g, 402, 552, 10, 10, T.red); else ro(g, 402, 552, 10, 10, T.ink, 1.2f);
             }
         } break;
@@ -2688,25 +2863,25 @@ private:
                 if (c.id == 0) txt(g, fMed, 13.5f, 442, 551, "quality", T.ink2);
                 const float sx = c.id ? 534.f : 496.f;
                 if (sel) rc(g, sx, 552, 10, 10, T.red); else ro(g, sx, 552, 10, 10, T.grey, 1.2f);
-                txt(g, fMed, 13.5f, sx + 14, 551, c.label.c_str(), sel ? T.ink : (hov ? T.ink2 : T.grey));
+                txt(g, fMed, 13.5f, sx + 14, 551, c.label.c_str(), sel ? T.ink : (mixc(T.grey, T.ink2, hv)));
                 break;
             }
             const float fz = c.b > 0 ? c.b : 12.5f;
-            txt(g, fMed, fz, c.a, c.c - 6 + (12.5f - fz) * 0.5f, c.label.c_str(), sel ? T.red : (hov ? T.ink : T.grey));
+            txt(g, fMed, fz, c.a, c.c - 6 + (12.5f - fz) * 0.5f, c.label.c_str(), sel ? T.red : (mixc(T.grey, T.ink, hv)));
             if (sel) rc(g, c.a, c.c + 11, tw(fMed, fz, c.label.c_str()), 1.5f, T.red);
         } break;
 
         case tOnOff: {
             const bool sel = (S.values[c.param] > 0.5f) == (c.id == 1);
             if (sel) rc(g, c.a, c.c - 3.5f, 7, 7, T.red); else dot(g, c.a + 3.5f, c.c, 1.6f, T.grey);
-            txt(g, fMed, 12.5f, c.a + 11, c.c - 6, c.label.c_str(), sel ? T.red : (hov ? T.ink : T.grey));
+            txt(g, fMed, 12.5f, c.a + 11, c.c - 6, c.label.c_str(), sel ? T.red : (mixc(T.grey, T.ink, hv)));
         } break;
 
         case tEqPos: {
             int pt = 0, pc = 0;
             for (int k = 0; k < kNumStages; ++k) { if (S.order[k] == kStTone) pt = k; if (S.order[k] == kStClip) pc = k; }
             const bool sel = (c.id == 0) == (pt < pc);
-            txt(g, fMed, kOptFont, c.a, c.c - 6 + (12.5f - kOptFont) * 0.5f, c.label.c_str(), sel ? T.red : (hov ? T.ink : T.grey));
+            txt(g, fMed, kOptFont, c.a, c.c - 6 + (12.5f - kOptFont) * 0.5f, c.label.c_str(), sel ? T.red : (mixc(T.grey, T.ink, hv)));
             if (sel) rc(g, c.a, c.c + 11, tw(fMed, kOptFont, c.label.c_str()), 1.5f, T.red);
         } break;
 
@@ -2715,14 +2890,16 @@ private:
             const int pos = (int)c.a;
             const float x = secXs(pos), y = secYs(pos);
             const bool dim = reorderFrom == pos && reorderMoved;
-            std::snprintf(b, sizeof b, "%02d", pos + 1);
+            int shownPos = pos;   // while another module is dragged, the number follows where this one is heading
+            for (int k = 0; k < kNumStages; ++k) if (tentOrder[k] == c.id) shownPos = k;
+            std::snprintf(b, sizeof b, "%02d", shownPos + 1);
             txt(g, fMono, 9, x + 12, y + 16, b, T.ink);
-            txt(g, fSemi, 15, x + 30, y + 13.5f, names[c.id], dim ? T.grey : (hov ? T.red : T.ink));
+            txt(g, fSemi, 15, x + 30, y + 13.5f, names[c.id], dim ? T.grey : (mixc(T.ink, T.red, hv)));
         } break;
 
         case tSectionPower: {
             const bool onv = S.values[c.param] > 0.5f;
-            if (onv) rc(g, c.a + kSecW - 24, c.c + 15, 11, 11, T.red); else ro(g, c.a + kSecW - 24, c.c + 15, 11, 11, hov ? T.ink : T.grey, 1.2f);
+            if (onv) rc(g, c.a + kSecW - 24, c.c + 15, 11, 11, T.red); else ro(g, c.a + kSecW - 24, c.c + 15, 11, 11, mixc(T.grey, T.ink, hv), 1.2f);
         } break;
 
         case tButton: {
@@ -2730,24 +2907,24 @@ private:
             case -1: txt(g, fMed, 12.5f, c.a, c.c - 6, c.label.c_str(), T.ink2); break;
             case bPrev: {
                 g.beginPath(); g.moveTo(104, 557); g.lineTo(111, 552); g.lineTo(111, 562); g.closePath();
-                g.fillColor(hov ? T.red : T.ink); g.fill();
+                g.fillColor(mixc(T.ink, T.red, hv)); g.fill();
             } break;
             case bNext: {
                 g.beginPath(); g.moveTo(214, 552); g.lineTo(221, 557); g.lineTo(214, 562); g.closePath();
-                g.fillColor(hov ? T.red : T.ink); g.fill();
+                g.fillColor(mixc(T.ink, T.red, hv)); g.fill();
             } break;
             case bPresetName: {
                 std::string nm = presetName(S.presetIdx);
                 if (S.presetModified) nm += " *";
                 while (nm.size() > 2 && tw(fMed, 13.5f, nm.c_str()) > 88.f) nm = nm.substr(0, nm.size() - 2) + "~";
-                txt(g, fMed, 13.5f, 119, 551, nm.c_str(), (hov || presetOpen) ? T.red : T.ink);
+                txt(g, fMed, 13.5f, 119, 551, nm.c_str(), (presetOpen ? T.red : mixc(T.ink, T.red, hv)));
             } break;
-            case bSave: txt(g, fMed, 13.5f, 240, 551, "save", hov ? T.ink : T.grey); break;
+            case bSave: txt(g, fMed, 13.5f, 240, 551, "save", mixc(T.grey, T.ink, hv)); break;
             case bAB: {
                 const float wa = measureText(fMed, 13.5f, "a", -.025f), ws = measureText(fMed, 13.5f, " / ", -.025f);
-                txt(g, fMed, 13.5f, 298, 551, "a", S.abCur == 0 ? T.red : (hov ? T.ink : T.grey));
+                txt(g, fMed, 13.5f, 298, 551, "a", S.abCur == 0 ? T.red : (mixc(T.grey, T.ink, hv)));
                 txt(g, fMed, 13.5f, 298 + wa, 551, " / ", T.grey);
-                txt(g, fMed, 13.5f, 298 + wa + ws, 551, "b", S.abCur == 1 ? T.red : (hov ? T.ink : T.grey));
+                txt(g, fMed, 13.5f, 298 + wa + ws, 551, "b", S.abCur == 1 ? T.red : (mixc(T.grey, T.ink, hv)));
             } break;
             case bBake: {
                 rc(g, 744, 548, 74, 26, T.yellow);
@@ -2765,21 +2942,22 @@ private:
                 const float xs[3] = {795, 800, 805}, ys[3] = {561.5f - 2.5f * d, 561.5f + 2.5f * d, 561.5f - 2.5f * d};
                 poly(g, xs, ys, 3, T.onMint, 1.5f);
             } break;
-            case bResetOrder: txt(g, fMed, 13.5f, 944, 555, "reset order", hov ? T.ink : T.grey, 2); break;
+            case bResetOrder: txt(g, fMed, 13.5f, 944, 555, "reset order", mixc(T.grey, T.ink, hv), 2); break;
             case bTheme: {
                 const float wd = measureText(fMono, 8.5f, "dark", .01f), ws = measureText(fMono, 8.5f, " / ", .01f), wl = measureText(fMono, 8.5f, "light", .01f);
                 const float x0 = 940 - wd - ws - wl;
-                txt(g, fMono, 8.5f, x0, 14, "light", !S.dark ? T.ink : (hov ? T.ink2 : T.grey));
+                const float m = themeMix;   // the underline slides across as the theme changes
+                txt(g, fMono, 8.5f, x0, 14, "light", mixc(mixc(T.grey, T.ink2, hv), T.ink, 1.f - m));
                 txt(g, fMono, 8.5f, x0 + wl, 14, " / ", T.grey);
-                txt(g, fMono, 8.5f, x0 + wl + ws, 14, "dark", S.dark ? T.ink : (hov ? T.ink2 : T.grey));
-                if (S.dark) rc(g, x0 + wl + ws, 25, wd - .1f * 8.5f, 1.5f, T.red); else rc(g, x0, 25, wl - .1f * 8.5f, 1.5f, T.red);
+                txt(g, fMono, 8.5f, x0 + wl + ws, 14, "dark", mixc(mixc(T.grey, T.ink2, hv), T.ink, m));
+                rc(g, x0 + (wl + ws) * m, 25, (wl + (wd - wl) * m) - .1f * 8.5f, 1.5f, T.red);
             } break;
             default: break;
             }
         } break;
 
         case tResize: {
-            for (int k = 0; k < 3; ++k) { const float o = 5 + k * 5; ln(g, 956 - o, 596, 956, 596 - o, hov ? T.ink : T.grey, .9f); }
+            for (int k = 0; k < 3; ++k) { const float o = 5 + k * 5; ln(g, 956 - o, 596, 956, 596 - o, mixc(T.grey, T.ink, hv), .9f); }
         } break;
         }
     }

@@ -113,6 +113,7 @@ protected:
     }
     bool hostStartDrag(const std::vector<std::string>& paths) override { return mercy::dndStartFileDrag(getWindow().getNativeWindowHandle(), paths); }
     void hostSetUiState(const char* s) override { setState("ui", s); }
+    bool hostReduceMotion() override { return mercy::osReduceMotion(); }
     void hostKeyboardFocus(bool grab) override
     {
         const uintptr_t h = getWindow().getNativeWindowHandle();

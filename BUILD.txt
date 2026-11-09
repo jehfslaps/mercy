@@ -101,3 +101,9 @@ Interface v1.7 (MercyView.hpp, font_mercy.h):
   Live specimen: Session::Scope keeps 180 peak bins (1 s) of input and output, written by the audio
   thread in run() (input scanned before processing, output after), read lock-free by the UI.
   Screenshots: test/shot.cpp + test/shots.sh (Xvfb).
+
+Fluid motion (2.1): src/MercyMotion.hpp. Every moving value is a damped spring with a target (theme
+cross-fade, era colours and underline, page slide, panels growing from their buttons, smooth list scrolling,
+modules sliding while reordering, slider glides on preset/reset, press dips, hover fades). Fixed 240 Hz
+integration from the wall clock; repaints only while something moves; OS "reduce motion" snaps everything.
+Recorder: test/motrec.cpp plays test/motrec_timeline.txt at a fixed 30 fps and encodes an mp4.

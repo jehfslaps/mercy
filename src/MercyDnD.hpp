@@ -20,5 +20,6 @@ bool dndStartFileDrag(uintptr_t nativeWindow, const std::vector<std::string>& pa
 bool dndSupported();
 // take keyboard focus for typing (true), or hand it back to the host window (false)
 void keyboardFocus(uintptr_t nativeWindow, bool grab);
+bool osReduceMotion();   // the OS accessibility setting "reduce motion" / "show animations" off
 
 } // namespace mercy
