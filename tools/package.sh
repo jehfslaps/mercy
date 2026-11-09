@@ -32,6 +32,7 @@ else
   NAME="Mercy_v${VER}_Windows.zip"
 fi
 cp "$ROOT/README.txt" "$M/"
+cp "$ROOT/package/MERCY_User_Manual.pdf" "$M/"
 cp "$ROOT"/package/licenses/* "$M/licenses/"
 cp "$ROOT/dpf/LICENSE" "$M/licenses/DPF-ISC.txt"
 cp "$ROOT"/src/*.cpp "$ROOT"/src/*.hpp "$ROOT"/src/*.h "$ROOT"/src/*.mm "$ROOT/src/Makefile" "$ROOT/BUILD.txt" "$M/source/"

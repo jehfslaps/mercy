@@ -1,0 +1,513 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>MERCY - user manual</title>
+<style>
+@font-face { font-family: "Archivo"; src: url("fonts/Archivo.ttf"); font-weight: 100 900; font-stretch: 62% 125%; }
+@font-face { font-family: "JB"; src: url("fonts/JBMono.ttf"); font-weight: 100 800; }
+@font-face { font-family: "Unbounded"; src: url("fonts/Unbounded.ttf"); font-weight: 200 900; }
+:root {
+  --paper: #110E12; --paper2: #18151A; --ink: #ECEAEB; --ink2: rgba(236,234,235,.82); --grey: #8F8A92;
+  --hair: rgba(236,234,235,.26); --hair2: rgba(236,234,235,.11);
+  --red: #E2290F; --mint: #47E4AE; --blue: #3B46FF; --pink: #DC7F89; --orange: #BF3E23; --violet: #6A3CB8; --yellow: #E2CC1E;
+}
+@page { size: A4; margin: 0; }
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--paper); color: var(--ink); }
+body { font-family: "Archivo", sans-serif; font-size: 10.2pt; line-height: 1.48; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.page { width: 210mm; height: 297mm; padding: 17mm 17mm 16mm 22mm; position: relative; overflow: hidden; page-break-after: always; break-after: page; }
+.page:last-child { page-break-after: auto; break-after: auto; }
+/* the plugin's side rail */
+.page::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 9mm; background: #000; }
+.rail { position: absolute; left: 0; width: 9mm; bottom: 16mm; text-align: center; }
+.rail span { display: inline-block; transform: rotate(-90deg); transform-origin: center; white-space: nowrap; font-family: "JB"; font-size: 6.5pt; color: var(--grey); letter-spacing: .25em; width: 60mm; margin-left: -25.5mm; }
+.top { display: flex; justify-content: space-between; font-family: "JB"; font-size: 7.4pt; color: var(--ink2); border-bottom: 0.6pt solid var(--hair); padding-bottom: 2.4mm; margin-bottom: 8mm; }
+.top b { color: var(--ink); font-weight: 500; }
+.foot { position: absolute; left: 22mm; right: 17mm; bottom: 9mm; display: flex; justify-content: space-between; font-family: "JB"; font-size: 7pt; color: var(--grey); }
+.num { font-family: "JB"; font-size: 8pt; color: var(--ink2); letter-spacing: .04em; }
+h1 { font-family: "Archivo"; font-stretch: 125%; font-weight: 900; font-size: 40pt; line-height: .95; letter-spacing: -.02em; margin: 1mm 0 6mm;
+     text-shadow: -1.6pt 0 0 rgba(226,41,15,.9), 1.6pt 0 0 rgba(71,228,174,.75); }
+h2 { font-family: "Archivo"; font-weight: 600; font-size: 15pt; margin: 7mm 0 2mm; letter-spacing: -.005em; }
+h3 { font-family: "Archivo"; font-weight: 600; font-size: 11.5pt; margin: 5mm 0 1.2mm; }
+h3 .tag, h2 .tag { font-family: "JB"; font-weight: 400; font-size: 7.4pt; color: var(--grey); margin-left: 2mm; letter-spacing: .03em; }
+p { margin: 0 0 2.6mm; color: var(--ink2); }
+p.lead { font-size: 12pt; line-height: 1.42; color: var(--ink); max-width: 150mm; }
+b, strong { color: var(--ink); font-weight: 600; }
+.mono, code { font-family: "JB"; font-size: 8.6pt; }
+code { background: var(--paper2); padding: .3mm 1.2mm; border: .5pt solid var(--hair2); color: var(--ink); white-space: nowrap; }
+pre { font-family: "JB"; font-size: 7.8pt; background: var(--paper2); border: .5pt solid var(--hair); padding: 3mm 3.5mm; margin: 1.5mm 0 3mm; white-space: pre-wrap; color: var(--ink); line-height: 1.5; }
+.fig { margin: 3mm 0 4mm; }
+.fig img { width: 100%; display: block; border: .6pt solid var(--hair); }
+.cap { font-family: "JB"; font-size: 7.2pt; color: var(--grey); margin-top: 1.6mm; }
+.cap b { color: var(--ink2); font-weight: 500; }
+table { width: 100%; border-collapse: collapse; margin: 1mm 0 3.5mm; }
+td, th { text-align: left; vertical-align: top; padding: 1.35mm 2mm 1.35mm 0; border-bottom: .5pt solid var(--hair2); font-size: 9.2pt; }
+th { font-family: "JB"; font-weight: 400; font-size: 7.2pt; color: var(--grey); border-bottom: .6pt solid var(--hair); letter-spacing: .04em; }
+td:first-child { white-space: nowrap; width: 27mm; color: var(--ink); font-weight: 500; }
+td { color: var(--ink2); }
+.k { font-family: "JB"; font-size: 8pt; color: var(--ink); }
+.cols { display: grid; grid-template-columns: 1fr 1fr; gap: 0 9mm; }
+.steps { counter-reset: s; list-style: none; padding: 0; margin: 1mm 0 3mm; }
+.steps li { counter-increment: s; position: relative; padding-left: 9mm; margin-bottom: 2.2mm; color: var(--ink2); }
+.steps li::before { content: counter(s, decimal-leading-zero); position: absolute; left: 0; top: .2mm; font-family: "JB"; font-size: 8pt; color: var(--red); }
+ul.dash { list-style: none; padding: 0; margin: 1mm 0 3mm; }
+ul.dash li { position: relative; padding-left: 5mm; margin-bottom: 1.5mm; color: var(--ink2); }
+ul.dash li::before { content: ""; position: absolute; left: 0; top: 2.3mm; width: 2.4mm; height: .9pt; background: var(--red); }
+.note { border-left: 2pt solid var(--yellow); padding: 1.8mm 0 1.8mm 4mm; margin: 3mm 0; color: var(--ink2); background: rgba(226,204,30,.05); }
+.note b { color: var(--yellow); }
+.sw { display: inline-block; width: 2.6mm; height: 2.6mm; vertical-align: -.2mm; margin-right: .6mm; }
+.era { border-top: .6pt solid var(--hair); padding: 3mm 0 1mm; display: grid; grid-template-columns: 34mm 1fr; gap: 4mm; }
+.era .name { font-family: "Archivo"; font-weight: 600; font-size: 16pt; line-height: 1; }
+.era .name small { display: block; font-family: "JB"; font-size: 7pt; color: var(--grey); font-weight: 400; margin-top: 2mm; }
+.mods { display: grid; grid-template-columns: 1fr 1fr; gap: 0 8mm; }
+.mod { border-top: .6pt solid var(--hair); padding-top: 2mm; margin-bottom: 3.2mm; break-inside: avoid; }
+.mod h3 { margin: 0 0 1mm; }
+.mod h3 .n { font-family: "JB"; font-size: 7.6pt; color: var(--grey); font-weight: 400; margin-right: 2mm; }
+.mod p { font-size: 9pt; margin-bottom: 1.2mm; }
+.mod .ctl { font-size: 8.6pt; color: var(--ink2); line-height: 1.45; }
+.mod .ctl b { font-family: "JB"; font-size: 7.8pt; font-weight: 500; }
+.grp { display: grid; grid-template-columns: 22mm 1fr; gap: 2.5mm; border-bottom: .5pt solid var(--hair2); padding: 1.6mm 0; font-size: 9pt; color: var(--ink2); }
+.grp .g { font-family: "JB"; font-size: 8.4pt; color: var(--ink); }
+.grp .g i { font-style: normal; color: var(--grey); margin-left: 1mm; }
+/* cover */
+.cover { padding-top: 26mm; }
+.wordmark { font-family: "Archivo"; font-stretch: 125%; font-weight: 900; font-size: 112pt; line-height: .8; letter-spacing: -.035em; color: var(--blue);
+            text-shadow: -3pt 0 0 rgba(226,41,15,.85), 3pt 0 0 rgba(71,228,174,.6); margin: 18mm 0 9mm -1.5mm; }
+.cover .sub { font-family: "Archivo"; font-weight: 500; font-size: 20pt; line-height: 1.15; max-width: 140mm; }
+.cover .meta { font-family: "JB"; font-size: 8pt; color: var(--ink2); margin-top: 10mm; line-height: 1.9; }
+.blocks { position: absolute; right: 17mm; bottom: 34mm; width: 64mm; height: 64mm; }
+.blocks div { position: absolute; }
+.toc { margin-top: 2mm; }
+.toc .row { display: grid; grid-template-columns: 12mm 1fr 12mm; border-bottom: .5pt solid var(--hair2); padding: 2.6mm 0; font-size: 12pt; }
+.toc .row .a { font-family: "JB"; font-size: 8pt; color: var(--red); padding-top: 1mm; }
+.toc .row .c { text-align: right; font-family: "JB"; font-size: 8pt; color: var(--grey); padding-top: 1mm; }
+.toc .row span.d { display: block; font-size: 8.6pt; color: var(--grey); margin-top: .6mm; }
+</style>
+</head>
+<body>
+
+<!-- ============================================================ cover -->
+<section class="page cover">
+  <div class="rail"><span>drum processor</span></div>
+  <div class="top"><span><b>mercy</b> / drum processor / user manual</span><span>light / <b>dark</b></span></div>
+  <div class="num">fig. 00 — manual</div>
+  <div class="wordmark">mercy.</div>
+  <div class="sub">A drum processor inspired by three eras of Kanye West: My Beautiful Dark Twisted Fantasy, Watch the Throne and Yeezus.</div>
+  <div class="meta">version 2 · windows (vst3 · clap) · mac, apple silicon (au · vst3 · clap)<br>by slapworx</div>
+  <div class="blocks">
+    <div style="left:0;top:0;width:38mm;height:38mm;background:var(--mint)"></div>
+    <div style="left:30mm;top:30mm;width:20mm;height:20mm;background:var(--pink)"></div>
+    <div style="left:50mm;top:50mm;width:6mm;height:6mm;background:var(--red)"></div>
+    <div style="left:56mm;top:44mm;width:6mm;height:6mm;background:var(--red)"></div>
+    <div style="left:44mm;top:56mm;width:6mm;height:6mm;background:var(--red)"></div>
+  </div>
+  <div class="foot"><span>slapworx · plug-ins + samples. that slap.</span><span>01</span></div>
+</section>
+
+<!-- ============================================================ contents -->
+<section class="page">
+  <div class="rail"><span>contents</span></div>
+  <div class="top"><span><b>mercy</b> / contents</span><span>x: 000 y: 002</span></div>
+  <div class="num">fig. 01 — contents</div>
+  <h1>inside.</h1>
+  <div class="toc">
+    <div class="row"><div class="a">01</div><div>install<span class="d">windows, mac, and finding MERCY in your DAW</span></div><div class="c">03</div></div>
+    <div class="row"><div class="a">02</div><div>quick start<span class="d">a good sound in a minute</span></div><div class="c">04</div></div>
+    <div class="row"><div class="a">03</div><div>the three eras<span class="d">fantasy, throne, yeezus</span></div><div class="c">05</div></div>
+    <div class="row"><div class="a">04</div><div>the main page<span class="d">squash, dirt, age, meters, filters, the bottom bar</span></div><div class="c">06</div></div>
+    <div class="row"><div class="a">05</div><div>the advanced page<span class="d">ten modules, the chain order, module presets</span></div><div class="c">08</div></div>
+    <div class="row"><div class="a">06</div><div>presets<span class="d">seven groups, saving, renaming, deleting</span></div><div class="c">11</div></div>
+    <div class="row"><div class="a">07</div><div>bake<span class="d">print MERCY's sound into audio files: single, bulk</span></div><div class="c">12</div></div>
+    <div class="row"><div class="a">08</div><div>capture<span class="d">record or grab what you hear, snapped to the bar</span></div><div class="c">14</div></div>
+    <div class="row"><div class="a">09</div><div>controls and tips<span class="d">mouse, keyboard, sizing, the look</span></div><div class="c">15</div></div>
+    <div class="row"><div class="a">10</div><div>troubleshooting<span class="d">and where your files live</span></div><div class="c">16</div></div>
+  </div>
+  <div class="foot"><span>mercy · user manual</span><span>02</span></div>
+</section>
+
+<!-- ============================================================ install -->
+<section class="page">
+  <div class="rail"><span>01 · install</span></div>
+  <div class="top"><span><b>mercy</b> / 01 / install</span><span>x: 001 y: 003</span></div>
+  <div class="num">01</div>
+  <h1>install.</h1>
+  <h2>windows <span class="tag">64-bit · VST3 + CLAP</span></h2>
+  <ol class="steps">
+    <li><b>Unblock the zip first.</b> Right-click the zip › Properties › tick <b>Unblock</b> › OK. Then unzip it.</li>
+    <li>Close your DAW.</li>
+    <li><b>VST3:</b> copy the <code>Mercy.vst3</code> folder from <code>VST3\</code> into <code>C:\Program Files\Common Files\VST3\</code>. Replace the old one if you're updating.</li>
+    <li><b>CLAP</b> (optional, for DAWs that load CLAP, like FL Studio 2024 and newer): copy <code>Mercy.clap</code> from <code>CLAP\</code> into <code>C:\Program Files\Common Files\CLAP\</code>.</li>
+    <li>Windows asks for administrator permission when you paste into Program Files: click <b>Continue</b>.</li>
+    <li>Open your DAW and scan for new plugins. FL Studio: <b>Options › Manage plugins › Find installed plugins</b>.</li>
+  </ol>
+  <h2>mac <span class="tag">apple silicon (m1 and newer) · AU + VST3 + CLAP</span></h2>
+  <ol class="steps">
+    <li>Quit your DAW.</li>
+    <li>In Finder press <span class="k">Shift + Cmd + G</span> and go to <code>~/Library/Audio/Plug-Ins</code>.</li>
+    <li>Copy <code>Mercy.component</code> into <b>Components</b> (AU: Logic Pro, GarageBand), <code>Mercy.vst3</code> into <b>VST3</b>, and, if your DAW uses CLAP, <code>Mercy.clap</code> into <b>CLAP</b> (make the folder if it isn't there).</li>
+    <li>Open your DAW. In Logic and GarageBand, MERCY is under <b>Audio Units › slapworx › Mercy</b>. Logic checks new plugins the first time it starts.</li>
+  </ol>
+  <div class="note"><b>If macOS says MERCY can't be opened</b> or your DAW won't load it, open Terminal, paste this line and press Return, then reopen your DAW:
+  <pre>xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/Components/Mercy.component ~/Library/Audio/Plug-Ins/VST3/Mercy.vst3 ~/Library/Audio/Plug-Ins/CLAP/Mercy.clap</pre>
+  It removes the "downloaded from the internet" flag from the three plugins. Nothing else changes.</div>
+  <p>Intel Macs aren't supported. MERCY sounds exactly the same on Windows and Mac: every build is checked so both render bit-identical audio, and presets and projects move between them freely.</p>
+  <div class="foot"><span>mercy · user manual</span><span>03</span></div>
+</section>
+
+<!-- ============================================================ quick start -->
+<section class="page">
+  <div class="rail"><span>02 · quick start</span></div>
+  <div class="top"><span><b>mercy</b> / 02 / quick start</span><span>x: 002 y: 004</span></div>
+  <div class="num">02</div>
+  <h1>quick start.</h1>
+  <p class="lead">MERCY goes on drums: a break, a loop, a kit bus, a kick or a snare. Put it on the track as an insert effect.</p>
+  <ol class="steps">
+    <li><b>Pick an era</b> at the top: <b>fantasy</b>, <b>throne</b> or <b>yeezus</b>. Each one is a whole voicing of the chain.</li>
+    <li><b>Or pick a preset.</b> Click the preset name in the bottom bar (it opens on "default break") and choose from 76 presets in seven groups, or step through them with the <b>‹ ›</b> arrows.</li>
+    <li><b>Shape it with the three big sliders:</b> <b>squash</b> (compression), <b>dirt</b> (saturation and clipping) and <b>age</b> (sampler crunch). The middle of each slider is the preset's own setting.</li>
+    <li><b>Blend it</b> with <b>mix</b>, and keep <b>auto gain</b> on so louder never fools you into thinking better. Use <b>output</b> to sit it in the mix.</li>
+    <li><b>Go deeper</b> on the <b>advanced</b> page: ten modules you can tweak, switch off and reorder.</li>
+    <li><b>Print it.</b> Open <b>bake</b> on the advanced page and drop audio on it, or capture what's playing, and drag the result straight into your DAW.</li>
+  </ol>
+  <div class="fig"><img src="img/m_main.jpg"><div class="cap"><b>fig. 1</b> — the main page, dark look, preset "gold throne".</div></div>
+  <div class="foot"><span>mercy · user manual</span><span>04</span></div>
+</section>
+
+<!-- ============================================================ eras -->
+<section class="page">
+  <div class="rail"><span>03 · eras</span></div>
+  <div class="top"><span><b>mercy</b> / 03 / the three eras</span><span>x: 003 y: 005</span></div>
+  <div class="num">03</div>
+  <h1>three eras.</h1>
+  <p class="lead">The era tabs are MERCY's biggest control. Each one changes the voicing of the whole chain and sets the advanced page up for that sound. The interface takes the era's colors too.</p>
+  <div class="era"><div class="name">fantasy<small><span class="sw" style="background:var(--blue)"></span><span class="sw" style="background:var(--violet)"></span>2010</small></div>
+    <div><p>Inspired by <b>My Beautiful Dark Twisted Fantasy</b>: big, glossy and dark. Huge snares, thick lows, a polished mix that still hits hard.</p>
+    <p>Sets up: a <b>plate</b> verb, a little <b>weight</b> and some preamp <b>thick</b>.</p></div></div>
+  <div class="era"><div class="name">throne<small><span class="sw" style="background:var(--mint)"></span><span class="sw" style="background:var(--pink)"></span>2011</small></div>
+    <div><p>Inspired by <b>Watch the Throne</b>: soul-sample swagger, punchy and expensive. Tight rooms, crisp chops, gold-plated compression.</p>
+    <p>Sets up: a <b>room</b> verb and a little <b>thick</b>.</p></div></div>
+  <div class="era"><div class="name">yeezus<small><span class="sw" style="background:var(--red)"></span><span class="sw" style="background:var(--orange)"></span>2013</small></div>
+    <div><p>Inspired by <b>Yeezus</b>: industrial, distorted and confrontational. Crushed low end, hard clipping, gates that slam shut.</p>
+    <p>Sets up: a <b>gated</b> verb and heavy <b>weight</b>, with no thick, because the crushed low end is the point.</p></div></div>
+  <h2>what clicking an era does</h2>
+  <ul class="dash">
+    <li>Changes the voicing of every stage and loads that era's starting point into the advanced page.</li>
+    <li>Leaves <b>transient</b> and <b>shape</b> alone, so your trim and transient shaping stay as they are.</li>
+    <li>Sets the <b>verb</b> up for the era (plate, room or gated) but <b>doesn't switch it on</b>. Turn it on yourself on the advanced page when you want space.</li>
+    <li>Presets can use any era. The tab shows which one a preset is built on.</li>
+  </ul>
+  <div class="foot"><span>mercy · user manual</span><span>05</span></div>
+</section>
+
+<!-- ============================================================ main page 1 -->
+<section class="page">
+  <div class="rail"><span>04 · main page</span></div>
+  <div class="top"><span><b>mercy</b> / 04 / the main page</span><span>x: 004 y: 006</span></div>
+  <div class="num">04</div>
+  <h1>main page.</h1>
+  <h2>the three sliders</h2>
+  <table>
+    <tr><th>control</th><th>what it does</th></tr>
+    <tr><td>squash</td><td>Compression with a parallel blend. Higher = more glue and pump, lower = more open.</td></tr>
+    <tr><td>dirt</td><td>Preamp saturation feeding the clipper. Higher = more grit, edge and loudness.</td></tr>
+    <tr><td>age</td><td>The sampler stage: lower sample rate, fewer bits and pitch crunch, like an old drum sampler. All the way down = off.</td></tr>
+  </table>
+  <p>At the middle (12 o'clock), squash and dirt use exactly what's set on the advanced page. Turn them up or down to push or pull those settings without opening it.</p>
+  <h2>level and blend</h2>
+  <table>
+    <tr><td>input</td><td>Level into MERCY (−24 to +24 dB). More input drives every stage harder.</td></tr>
+    <tr><td>mix</td><td>Dry / processed blend. 100% = fully processed.</td></tr>
+    <tr><td>output</td><td>Final level (−24 to +24 dB).</td></tr>
+    <tr><td>auto gain</td><td>Keeps the output about as loud as the input, so you judge the sound and not the volume. On by default.</td></tr>
+    <tr><td>transient <span class="k">|→ 100</span></td><td>An Ableton-style transient trim ("Beats" warp with preserve transients). Drag the box down to chop the tail of every hit shorter. 100 = off; the box turns red when it's working.</td></tr>
+  </table>
+  <h2>fig. 01 and the meters</h2>
+  <table>
+    <tr><td>fig. 01</td><td>The live output over the last second, drawn like a printed waveform. The crosshair sits on the loudest hit with its peak level. The small square in the corner is the input, so you see before and after at a glance.</td></tr>
+    <tr><td>in / gr / out</td><td>Input level, gain reduction (the red part) and output level.</td></tr>
+    <tr><td>hpf / lpf</td><td>Gentle high-pass (20 Hz–2 kHz) and low-pass (20 kHz–500 Hz) filters after everything else. Far left / far right = off.</td></tr>
+    <tr><td>spec.</td><td>A small readout: era, how many modules are on, look-ahead, quality and bake status.</td></tr>
+  </table>
+  <div class="foot"><span>mercy · user manual</span><span>06</span></div>
+</section>
+
+<!-- ============================================================ main page 2 -->
+<section class="page">
+  <div class="rail"><span>04 · main page</span></div>
+  <div class="top"><span><b>mercy</b> / 04 / the main page</span><span>x: 004 y: 007</span></div>
+  <h2 style="margin-top:0">the bottom bar</h2>
+  <table>
+    <tr><td>‹ preset ›</td><td>The current preset. Click the name for the full preset list (page 11); the arrows step to the previous or next preset. A <b>*</b> after the name means you've changed it since loading.</td></tr>
+    <tr><td>save</td><td>Name and save your own preset.</td></tr>
+    <tr><td>a / b</td><td>Two slots to compare settings. Click to switch between a and b; each remembers its own sound.</td></tr>
+    <tr><td>bypass</td><td>Hear the dry signal.</td></tr>
+    <tr><td>quality 1x / 2x</td><td>2x runs MERCY oversampled: cleaner distortion and clipping, a little more CPU. Bakes always use 2x.</td></tr>
+  </table>
+  <h2>the top bar</h2>
+  <table>
+    <tr><td>fantasy / throne / yeezus</td><td>The era (page 05).</td></tr>
+    <tr><td>advanced</td><td>Opens the advanced page. Click it again to come back.</td></tr>
+    <tr><td>light / dark</td><td>Switches the look. Your choice is saved with the project.</td></tr>
+  </table>
+  <div class="fig"><img src="img/m_light.jpg"><div class="cap"><b>fig. 2</b> — the same page in the light look.</div></div>
+  <p>MERCY adds a 5 ms look-ahead (so the transient tools catch the very front of each hit). It reports this to your DAW, which lines everything up for you.</p>
+  <div class="foot"><span>mercy · user manual</span><span>07</span></div>
+</section>
+
+<!-- ============================================================ advanced 1 -->
+<section class="page">
+  <div class="rail"><span>05 · advanced</span></div>
+  <div class="top"><span><b>mercy</b> / 05 / the advanced page</span><span>x: 005 y: 008</span></div>
+  <div class="num">05</div>
+  <h1>advanced.</h1>
+  <p class="lead">Ten modules, in the order the sound flows through them: left to right, top row then bottom row.</p>
+  <div class="fig"><img src="img/m_adv.jpg"><div class="cap"><b>fig. 3</b> — the advanced page.</div></div>
+  <ul class="dash">
+    <li><b>On / off:</b> the red square at the top right of each module switches it on or off.</li>
+    <li><b>Reorder the chain:</b> drag a module by its name onto another slot. The others slide over to make room while you drag. <b>reset order</b> (bottom right) puts the chain back. Presets can set their own order.</li>
+    <li><b>Module presets:</b> click a module's name (without dragging) for a small list of presets for just that module. Picking one changes only that module; <b>default</b> puts it back to its starting point for the current era.</li>
+    <li><b>Figures:</b> the small drawings in each module react to your settings: transient markers, the drive curve, the clip ceiling, the stereo field and more.</li>
+  </ul>
+  <div class="foot"><span>mercy · user manual</span><span>08</span></div>
+</section>
+
+<!-- ============================================================ advanced 2: modules -->
+<section class="page">
+  <div class="rail"><span>05 · modules</span></div>
+  <div class="top"><span><b>mercy</b> / 05 / the modules</span><span>x: 005 y: 009</span></div>
+  <h2 style="margin-top:0">the modules</h2>
+  <div class="mods">
+    <div class="mod"><h3><span class="n">tr</span>transient</h3>
+      <p>The Ableton-style trim from the main page. It only takes away: each hit restarts a fade, so tails get shorter.</p>
+      <div class="ctl"><b>envelope</b> 0–100 (100 = no fade) · <b>detect</b> how easily hits are picked up</div></div>
+    <div class="mod"><h3><span class="n">sh</span>shape</h3>
+      <p>A transient shaper that can add or remove attack and sustain.</p>
+      <div class="ctl"><b>kick / snare / bus</b> what you're feeding it · <b>classic / natural / smooth</b> character · <b>attack</b> and <b>sustain</b> −100 to +100% · <b>focus</b> aims it at one range (tight on kick, body on snare, presence on bus). All at 0 = no change.</div></div>
+    <div class="mod"><h3><span class="n">sm</span>sampler</h3>
+      <p>Old drum-sampler character: the grit and pitch crunch of classic 12-bit machines.</p>
+      <div class="ctl"><b>sp-12 / asr / mpc</b> model · <b>rate</b> 4–44.1 kHz · <b>bits</b> 4–16 · <b>crunch</b> · <b>aa filter</b> smooths the aliasing</div></div>
+    <div class="mod"><h3><span class="n">pr</span>preamp</h3>
+      <p>Saturation in four flavors.</p>
+      <div class="ctl"><b>console / tube / tape / xfmr</b> flavor · <b>drive</b> 0–24 dB · <b>low em.</b> low-end emphasis · <b>color</b> · <b>thick</b> lets the lows go around the saturation (the split rises from 60 to 250 Hz as you turn it up), so the top gets the grit and the kick and sub stay full. 0 = off.</div></div>
+    <div class="mod"><h3><span class="n">sq</span>squash</h3>
+      <p>Compressor with a parallel blend.</p>
+      <div class="ctl"><b>threshold</b> · <b>ratio</b> 1–20:1 · <b>attack</b> 0.1–30 ms · <b>release</b> 20–500 ms · <b>blend</b> dry/compressed · <b>sidechain</b> high-pass, so the kick doesn't pump everything</div></div>
+    <div class="mod"><h3><span class="n">to</span>tone</h3>
+      <p>Broad, musical EQ moves.</p>
+      <div class="ctl"><b>low boost 60 / 100 Hz</b> + amount (0–12 dB) · <b>bite 3k / 10k</b> + amount · <b>depth</b> a top-end roll-off, 2–20 kHz</div></div>
+    <div class="mod"><h3><span class="n">wt</span>weight</h3>
+      <p>A bass resonance tool, measured against and matched to UAD's Little Labs Voice of God: same controls, same numbers. It starts off; the fantasy and yeezus eras switch it on.</p>
+      <div class="ctl"><b>center 40 / 100 / 200</b> 61–20 Hz (subs, 808s), 171–57 Hz (kick body), 306–102 Hz · <b>freq</b> 0 = top of the range, 10 = bottom · <b>amount</b> 0 = flat, 10 = full resonance (up to about +18 dB) with a steep cut under it · <b>flat</b> the same bump with the lows under it left alone. The <b>ol</b> light flashes red when weight pushes past 0 dB.</div></div>
+    <div class="mod"><h3><span class="n">rv</span>verb</h3>
+      <p>A reverb tuned for drums. The kick stays out of it (built-in low cut). Off unless you turn it on.</p>
+      <div class="ctl"><b>plate / room / gated</b> mode · <b>decay</b> 0.1–4 s (called <b>length</b> in gated mode: how long the tail stays open) · <b>pre-delay</b> 0–100 ms · <b>tone</b> dark to bright · <b>duck</b> pushes the tail down under each hit · <b>mix</b></div></div>
+    <div class="mod"><h3><span class="n">cl</span>clip</h3>
+      <p>The final edge.</p>
+      <div class="ctl"><b>soft / hard</b> · <b>eq pre / post</b> swaps the order of tone and clip · <b>amount</b> · <b>ceiling</b> −12 to 0 dB</div></div>
+    <div class="mod"><h3><span class="n">gw</span>gate/width</h3>
+      <p>Gate and stereo image.</p>
+      <div class="ctl"><b>gate</b> threshold (off at the bottom) · <b>hold</b> 5–500 ms · <b>width</b> 0–200% · <b>mono lows</b> keeps everything under 120 Hz in mono</div></div>
+  </div>
+  <div class="foot"><span>mercy · user manual</span><span>09</span></div>
+</section>
+
+<!-- ============================================================ advanced 3: module presets -->
+<section class="page">
+  <div class="rail"><span>05 · module presets</span></div>
+  <div class="top"><span><b>mercy</b> / 05 / module presets</span><span>x: 005 y: 010</span></div>
+  <h2 style="margin-top:0">module presets</h2>
+  <p>Click a module's name to open its own preset list. The preset that matches the module's current settings is marked in red.</p>
+  <div class="cols">
+    <div class="fig" style="margin-top:1mm"><img src="img/c_mod.jpg"><div class="cap"><b>fig. 4</b> — shape's module presets.</div></div>
+    <div>
+      <table>
+        <tr><td>transient</td><td>light trim, tight, chopped, gated, catch ghosts, big hits only</td></tr>
+        <tr><td>shape</td><td>kick punch, kick boom, snare crack, fat snare, loop snap, dry loop, thick loop, soften harsh</td></tr>
+        <tr><td>sampler</td><td>sp-12 style, sp-12 pitched down, asr warm, asr grit, mpc60 style, mpc 2000 clean, crushed, am radio</td></tr>
+        <tr><td>preamp</td><td>console glue, console push, tube warmth, tube burn, tape, tape hot, iron, iron fuzz</td></tr>
+        <tr><td>squash</td><td>bus glue, punch, all buttons, parallel smash, pump, room lift, gentle</td></tr>
+      </table>
+    </div>
+  </div>
+  <table>
+    <tr><td>tone</td><td>warm, big low end, 100 hz thump, snare bite, air, dark, radio</td></tr>
+    <tr><td>weight</td><td>kick weight, 808 chest, sub bloom, kick body, tight thump, snare body, big weight</td></tr>
+    <tr><td>verb</td><td>snare plate, big plate, dark plate, tight room, drum room, big room, gated snare, industrial gate, long gate</td></tr>
+    <tr><td>clip</td><td>clean, soft kiss, soft loud, hard edge, hard slam, low ceiling grit</td></tr>
+    <tr><td>gate/width</td><td>wide, open stereo, narrow, mono, tight gate, choke</td></tr>
+  </table>
+  <p>Every list also has <b>default</b>, which puts the module back to its starting point (for modules the era drives, the current era's setting).</p>
+  <h2>why the order matters</h2>
+  <p>Moving a module changes what it works on. A few ideas that presets in the list use:</p>
+  <ul class="dash">
+    <li><b>Verb early:</b> the transient trim chops the reverb tail, squash pumps it, or the gate cuts it short.</li>
+    <li><b>Clip before squash:</b> the compressor tames the clipped peaks for a denser, flatter hit.</li>
+    <li><b>Sampler last:</b> everything gets crunched together, like resampling a finished loop.</li>
+    <li><b>Weight last:</b> the low-end bump goes on after the saturation instead of being flattened by it.</li>
+  </ul>
+  <div class="foot"><span>mercy · user manual</span><span>10</span></div>
+</section>
+
+<!-- ============================================================ presets -->
+<section class="page">
+  <div class="rail"><span>06 · presets</span></div>
+  <div class="top"><span><b>mercy</b> / 06 / presets</span><span>x: 006 y: 011</span></div>
+  <div class="num">06</div>
+  <h1>presets.</h1>
+  <div class="cols">
+    <div>
+      <p>Click the preset name in the bottom bar to open the list. 76 factory presets, grouped by what they do to the sound. The bar under the title jumps straight to a group, and the red underline follows the group you're looking at as you scroll.</p>
+      <div class="grp"><div class="g">start<i>6</i></div><div>clean starting points: nothing, default break, glue</div></div>
+      <div class="grp"><div class="g">punch<i>13</i></div><div>compression and transients: snap, parallel smash, tape glue</div></div>
+      <div class="grp"><div class="g">grit<i>15</i></div><div>sampler, lo-fi, crunch: sp-12 crunch, mpc thump, dusty vinyl</div></div>
+      <div class="grp"><div class="g">low end<i>9</i></div><div>weight and sub: 808 weight, sub bloom, kick body</div></div>
+      <div class="grp"><div class="g">space<i>19</i></div><div>the reverb presets: plate snare, dark plate, drowned break</div></div>
+      <div class="grp"><div class="g">gated<i>6</i></div><div>gated snare, gated toms, industrial gate</div></div>
+      <div class="grp"><div class="g">eras<i>8</i></div><div>the signature sounds: dark fantasy, gold throne, yeezus raw</div></div>
+      <p style="margin-top:3mm"><b>nothing</b> switches every module off: no processing at all. Start from it to build a sound from scratch.</p>
+    </div>
+    <div class="fig" style="margin-top:0"><img src="img/c_pre.jpg"><div class="cap"><b>fig. 5</b> — the preset list.</div></div>
+  </div>
+  <h2>your own presets</h2>
+  <ul class="dash">
+    <li><b>save</b> (bottom bar) opens a name box. Type a name and press <span class="k">Enter</span>. The suggested name is selected, so you can just start typing. <span class="k">Esc</span> cancels.</li>
+    <li>Your presets appear in a <b>user</b> group at the end of the list (and in the group bar once you have one).</li>
+    <li><b>Rename or delete:</b> right-click one of your presets, or hover it and click the small <b>×</b>. Delete always asks "delete? yes / no" first. Factory presets can't be changed.</li>
+    <li>Deleting the preset you're using doesn't change your sound; the name just goes back to "default break *".</li>
+    <li><b>open presets folder</b> (bottom of the list) opens the folder with your presets file. It's one text file, the same on Windows and Mac, so you can copy it between computers.</li>
+  </ul>
+  <div class="foot"><span>mercy · user manual</span><span>11</span></div>
+</section>
+
+<!-- ============================================================ bake 1 -->
+<section class="page">
+  <div class="rail"><span>07 · bake</span></div>
+  <div class="top"><span><b>mercy</b> / 07 / bake</span><span>x: 007 y: 012</span></div>
+  <div class="num">07</div>
+  <h1>bake.</h1>
+  <p class="lead">Print MERCY's sound into audio files without leaving the plugin. Open it with <b>bake</b> at the bottom right of the advanced page.</p>
+  <div class="fig"><img src="img/c_bake.jpg"><div class="cap"><b>fig. 6</b> — the bake panel.</div></div>
+  <h2>single</h2>
+  <ol class="steps">
+    <li>Dial in a sound you like.</li>
+    <li>Drag audio onto the drop zone: from your DAW's browser, Explorer or Finder. Loops, one-shots, stems or full beats; wav, aiff, flac or mp3. Or click <b>or browse</b>.</li>
+    <li>Press <b>bake</b>.</li>
+    <li>Grab the finished file by its <b>drag →</b> handle and drop it into your DAW: the playlist, a track, a sampler. Then drop the next file.</li>
+  </ol>
+  <p>Change your settings and press bake again to re-bake with the new sound.</p>
+  <div class="foot"><span>mercy · user manual</span><span>12</span></div>
+</section>
+
+<!-- ============================================================ bake 2 -->
+<section class="page">
+  <div class="rail"><span>07 · bake</span></div>
+  <div class="top"><span><b>mercy</b> / 07 / bake</span><span>x: 007 y: 013</span></div>
+  <h2 style="margin-top:0">bulk</h2>
+  <ul class="dash">
+    <li>Drop many files at once, or a whole folder (subfolders too). MERCY switches to bulk by itself.</li>
+    <li>Press <b>bake all</b>. Then drag the files out one by one, all together with <b>drag all →</b>, or press <b>export to desktop</b> to put the whole batch in a new folder on your desktop (for example "Mercy – gold throne – Oct 30"), which opens when it's done.</li>
+  </ul>
+  <h2>what a bake does</h2>
+  <ul class="dash">
+    <li>Uses <b>everything you hear</b>: era, sliders, every module, the chain order, transient, filters, mix, output and auto gain.</li>
+    <li>Always renders at <b>2x quality</b>, and ignores bypass.</li>
+    <li>Keeps the <b>exact length and timing</b> of the original. Loops wrap seamlessly: MERCY warms up on the loop first, so the first hit sounds like every other hit and the end flows into the start.</li>
+    <li>Writes <b>24-bit WAV</b> at the file's own sample rate. If the result would go over 0 dB, it's saved as 32-bit float instead so nothing clips ("32-bit" in the list). Turn output down if you'd rather have 24-bit.</li>
+    <li>Names files after the original and the preset, like <code>amen_mercy_gold-throne.wav</code>, in <b>Documents › Mercy Bakes</b>. Nothing is ever overwritten. <b>open bake folder</b> opens it.</li>
+    <li>Runs in the background, so your DAW keeps playing smoothly. Bakes carry on while the plugin window is closed.</li>
+  </ul>
+  <h2>good to know</h2>
+  <ul class="dash">
+    <li>MP3s carry a little encoder silence at the edges, so MP3 bakes come out slightly longer and won't loop perfectly. Use WAV for loops.</li>
+    <li>With the sampler on, every pass of a loop varies very slightly (live too), so a bake can't be bit-identical to one live pass. With the sampler off, a bake is bit-identical to what MERCY plays live.</li>
+    <li>If dragging files in or out ever doesn't work in your DAW, use <b>or browse</b> to load and <b>open bake folder</b> to grab the results.</li>
+  </ul>
+  <div class="foot"><span>mercy · user manual</span><span>13</span></div>
+</section>
+
+<!-- ============================================================ capture -->
+<section class="page">
+  <div class="rail"><span>08 · capture</span></div>
+  <div class="top"><span><b>mercy</b> / 08 / capture</span><span>x: 008 y: 014</span></div>
+  <div class="num">08</div>
+  <h1>capture.</h1>
+  <p class="lead">Bake what you hear, live. The <b>capture</b> tab in the bake panel records MERCY's output while your track plays, snapped to your DAW's bars, so loops come out whole and line up to the sample.</p>
+  <div class="cols">
+    <div>
+      <h3>grab last N bars</h3>
+      <p>Just played something great? Press <b>grab</b> and MERCY saves the last N bars that fully played. It's always listening: the strip at the top shows the recent history.</p>
+      <h3>record</h3>
+      <p>Press <b>record</b> to arm. Recording starts on the next bar line and stops by itself after N bars. With <b>free</b>, it runs until you press <b>stop</b>, which finishes the current bar so the loop stays whole.</p>
+      <h3>length</h3>
+      <p><b>1, 2, 4, 8, 16</b> bars, or <b>free</b>.</p>
+    </div>
+    <div class="fig" style="margin-top:4mm"><img src="img/c_cap.jpg"><div class="cap"><b>fig. 7</b> — the capture controls.</div></div>
+  </div>
+  <ul class="dash">
+    <li>Captures exactly what you hear: after every slider, module and filter.</li>
+    <li>With the transport stopped, record starts on the first sound and the silence after you stop is trimmed.</li>
+    <li>MERCY starts listening the first time you open the bake panel in a session, and keeps about a minute of history.</li>
+    <li>Takes are saved next to your bakes as <code>capture_&lt;preset&gt;_&lt;bpm&gt;bpm_&lt;n&gt;bars_001.wav</code>, show up in the same file list and drag out the same way.</li>
+  </ul>
+  <div class="foot"><span>mercy · user manual</span><span>14</span></div>
+</section>
+
+<!-- ============================================================ controls -->
+<section class="page">
+  <div class="rail"><span>09 · controls</span></div>
+  <div class="top"><span><b>mercy</b> / 09 / controls and tips</span><span>x: 009 y: 015</span></div>
+  <div class="num">09</div>
+  <h1>controls.</h1>
+  <table>
+    <tr><th>do this</th><th>to</th></tr>
+    <tr><td>drag</td><td>adjust a control</td></tr>
+    <tr><td>shift + drag</td><td>adjust finely</td></tr>
+    <tr><td>double-click</td><td>reset a control to its default</td></tr>
+    <tr><td>mouse wheel</td><td>nudge a control, or scroll a list</td></tr>
+    <tr><td>right-click</td><td>type an exact value; <span class="k">Enter</span> confirms, <span class="k">Esc</span> cancels</td></tr>
+    <tr><td>bottom-right corner</td><td>drag to resize the window, 75% to 200%</td></tr>
+    <tr><td>Esc</td><td>close an open list or panel</td></tr>
+  </table>
+  <h2>tips</h2>
+  <ul class="dash">
+    <li><b>Judge at equal loudness.</b> Keep auto gain on, or level-match with output before you compare with bypass.</li>
+    <li><b>Use a / b</b> to compare two directions without losing either.</li>
+    <li><b>Quality 2x</b> is cleaner on heavy dirt and clipping. Switch to 1x on a big session if you need the CPU.</li>
+    <li><b>Starting points for shape:</b> tighter kick: kick, natural, attack +40, sustain −20, tight +40 · snappy snare: snare, natural, attack +50 · dry roomy loop: bus, natural, sustain −50 · thick loop: bus, smooth, sustain +40.</li>
+    <li>Some presets can peak a little above 0 dB on breaks that already sit near 0 dBFS. Pull output down if your master clips.</li>
+    <li>MERCY remembers where you were: page, panels, preset, a/b slots and the look are saved with your project.</li>
+    <li>Motion follows your system: if "reduce motion" (Mac) or animations (Windows) are off, MERCY's animations are too.</li>
+  </ul>
+  <div class="foot"><span>mercy · user manual</span><span>15</span></div>
+</section>
+
+<!-- ============================================================ troubleshooting -->
+<section class="page">
+  <div class="rail"><span>10 · troubleshooting</span></div>
+  <div class="top"><span><b>mercy</b> / 10 / troubleshooting</span><span>x: 010 y: 016</span></div>
+  <div class="num">10</div>
+  <h1>help.</h1>
+  <table>
+    <tr><th>if</th><th>try</th></tr>
+    <tr><td>MERCY doesn't show up</td><td>Check the plugin is in the right folder (page 03), then rescan. FL Studio: Options › Manage plugins › Find installed plugins. Logic: Settings › Plug-in Manager, select MERCY › Reset &amp; Rescan Selection.</td></tr>
+    <tr><td>Windows blocks it</td><td>Unblock the zip before unzipping (right-click › Properties › Unblock), then copy the plugin again.</td></tr>
+    <tr><td>macOS blocks it</td><td>Run the Terminal line on page 03, then reopen your DAW.</td></tr>
+    <tr><td>Keys don't work in your DAW</td><td>While a name box or typed value is open, MERCY takes the keyboard. Press Enter or Esc and your DAW's shortcuts come back.</td></tr>
+    <tr><td>The master clips</td><td>Pull output down, or lower dirt and clip amount.</td></tr>
+    <tr><td>Drag and drop doesn't work</td><td>Use "or browse" to load files and "open bake folder" to grab the results.</td></tr>
+    <tr><td>Automation shows odd numbers</td><td>DAW automation lanes show raw values (0.5 instead of 50%). That's normal.</td></tr>
+  </table>
+  <h2>where your files live</h2>
+  <table>
+    <tr><td>bakes and captures</td><td>Windows <code>Documents\Mercy Bakes</code> · Mac <code>Documents/Mercy Bakes</code></td></tr>
+    <tr><td>your presets</td><td>Windows <code>%APPDATA%\Mercy\user_presets.txt</code><br>Mac <code>~/Library/Application Support/Mercy/user_presets.txt</code></td></tr>
+  </table>
+  <h2>credits</h2>
+  <p>MERCY is made by <b>slapworx</b>. Built with DPF (DISTRHO Plugin Framework, ISC license), the fonts Archivo, Unbounded and JetBrains Mono (SIL Open Font License) and dr_libs (public domain / MIT-0). The licenses are in the licenses folder.</p>
+  <p>MERCY is an independent product, not affiliated with or endorsed by Kanye West, Ableton or Universal Audio. Album titles and product names belong to their owners and are used only to describe the sounds that inspired MERCY.</p>
+  <div class="foot"><span>slapworx · plug-ins + samples. that slap.</span><span>16</span></div>
+</section>
+
+</body>
+</html>
