@@ -1886,7 +1886,10 @@ private:
         if (e != cur) {
             applyingPreset = true;
             for (uint32_t i = 0; i < kNumAdvParams; ++i) setValueGesture(kFirstAdvParam + i, kEraDefaults[e][i]);
-            for (uint32_t i = 0; i < kNumNewParams; ++i) setValueGesture(kFirstNewParam + i, kEraNew[e][i]);
+            // the era sets the reverb up (plate / room / gated) but leaves its power switch alone:
+            // reverb is a choice, it should never arrive just because an era was picked
+            for (uint32_t i = 0; i < kNumNewParams; ++i)
+                if (kFirstNewParam + i != pRvOn) setValueGesture(kFirstNewParam + i, kEraNew[e][i]);
             setValueGesture(pEra, (float)e);
             applyingPreset = false;
             S.presetModified = true;
