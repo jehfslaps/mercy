@@ -2403,8 +2403,9 @@ private:
                 }
             } break;
             case kStPreamp: {
-                const float bx = fx, by = fy + 10, bs = 30;
-                txt(g, fMono, 7.5f, fx, fy, "fig. drive curve", T.ink);
+                // a small curve box with its caption beside it, all inside the module (the old stacked layout ran past
+                // the bottom edge); the era colour is a small swatch by the flavor instead of a big block
+                const float bs = 28, bx = fx, by = fy - 4, tx = bx + bs + 10;
                 ro(g, bx, by, bs, bs, T.hair, 1);
                 ln(g, bx, by + bs / 2, bx + bs, by + bs / 2, T.hair2);
                 ln(g, bx + bs / 2, by, bx + bs / 2, by + bs, T.hair2);
@@ -2412,13 +2413,12 @@ private:
                 float xs[41], ys[41];
                 for (int i = 0; i <= 40; ++i) { const float u = i / 40.f; xs[i] = bx + bs * u; ys[i] = by + bs / 2 - std::tanh((u - .5f) * 2 * k) / std::tanh(k) * bs * .42f; }
                 poly(g, xs, ys, 41, T.ink, 1.4f);
-                dot(g, bx + bs * .68f, by + bs / 2 - std::tanh(.36f * k) / std::tanh(k) * bs * .42f, 3, T.red);
-                rc(g, bx + 46, by + 4, 28, 28, acc2());
-                cells(g, bx + 74, by + 32, kDiag2, 2, 5, acc1());
+                dot(g, bx + bs * .68f, by + bs / 2 - std::tanh(.36f * k) / std::tanh(k) * bs * .42f, 2.5f, T.red);
+                txt(g, fMono, 7.5f, tx, by + 2, "fig. drive curve", T.ink);
                 static const char* fl[4] = {"console", "tube", "tape", "xfmr"};
-                txt(g, fMono, 7.5f, bx + 88, by + 8, fl[(int)clampf(std::round(S.values[pPreFlavor]), 0, 3)], T.ink);
-                std::snprintf(b, sizeof b, "%+.0f dB", S.values[pPreDrive]);
-                txt(g, fMono, 7.5f, bx + 88, by + 20, b, T.ink);
+                rc(g, tx, by + 17, 6, 6, acc2());
+                std::snprintf(b, sizeof b, "%s \xC2\xB7 %+.0f dB", fl[(int)clampf(std::round(S.values[pPreFlavor]), 0, 3)], S.values[pPreDrive]);
+                txt(g, fMono, 7.5f, tx + 10, by + 16, b, T.ink2);
             } break;
             case kStClip: {
                 txt(g, fMono, 7.5f, fx, fy, "fig. ceiling", T.ink);
