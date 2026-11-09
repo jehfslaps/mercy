@@ -99,8 +99,19 @@ static const FactoryPreset kFactory[] = {
 };
 static constexpr int kNumFactory = sizeof(kFactory) / sizeof(kFactory[0]);
 static constexpr int kNumFactoryV1 = 34;   // the 1.x presets keep their places (projects store the index); 2.0's come after
-// the order the browser and the < > arrows show them in: "nothing" and "default break" first, the rest shuffled (fixed)
-static const int kPresetDisplay[] = {34, 0, 73, 53, 46, 11, 68, 56, 44, 57, 39, 62, 35, 59, 43, 9, 27, 24, 52, 49, 50, 4, 75, 18, 40, 13, 3, 51, 15, 72, 12, 47, 28, 2, 20, 10, 30, 38, 61, 36, 37, 63, 22, 5, 74, 33, 25, 48, 23, 17, 26, 71, 21, 69, 32, 45, 60, 65, 70, 7, 54, 19, 8, 6, 41, 1, 31, 58, 64, 55, 29, 14, 67, 66, 42, 16};
+// the browser groups the factory presets by what they do to the sound; this is also the order the < > arrows
+// step through. kPresetDisplay lists every factory preset once, group after group (kGroupSize presets each).
+static const char* const kGroupNames[] = {"start", "punch", "grit", "low end", "space", "gated", "eras"};
+static const int kGroupSize[] = {6, 13, 15, 9, 19, 6, 8};
+static constexpr int kNumGroups = sizeof(kGroupSize) / sizeof(kGroupSize[0]);
+static const int kPresetDisplay[] = {34, 0, 8, 28, 13, 33,
+    9, 11, 27, 26, 18, 25, 10, 12, 29, 15, 32, 67, 71,
+    6, 22, 23, 24, 7, 30, 62, 31, 5, 20, 75, 61, 65, 63, 68,
+    49, 40, 45, 39, 21, 50, 64, 72, 58,
+    35, 36, 37, 38, 41, 42, 43, 44, 51, 52, 59, 56, 66, 55, 70, 60, 69, 54, 74,
+    46, 48, 57, 47, 53, 73,
+    1, 14, 2, 16, 3, 17, 4, 19};
 static_assert(sizeof(kPresetDisplay) / sizeof(kPresetDisplay[0]) == kNumFactory, "every factory preset needs a place in kPresetDisplay");
+static_assert(sizeof(kGroupNames) / sizeof(kGroupNames[0]) == kNumGroups, "one name per group");
 
 } // namespace mercy

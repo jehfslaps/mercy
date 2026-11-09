@@ -575,7 +575,7 @@ public:
             ctxOpen = false;
             const int want = popScroll + (dy > 0 ? -1 : 1), ns = std::max(0, std::min(want, popMaxScroll()));
             if (ns != want) mo.kick(mkey(8, 0), dy > 0 ? -12.f : 12.f);   // the end of the list gives a little
-            popScroll = ns; popHover = -1; popupMotion(x, y); host->hostRepaint(); return true;
+            popScroll = ns; popHover = -1; jumpSel = -1; popupMotion(x, y); host->hostRepaint(); return true;
         }
         const int i = hit(x, y);
         if (i < 0 || !isSlider(ctls[i].type)) return false;
@@ -744,13 +744,19 @@ private:
     bool ctxOpen = false; int ctxIdx = -1, ctxHover = -1; float ctxX = 0, ctxY = 0;
     static constexpr float kPopX = 104, kPopY = 96, kPopW = 536, kPopH = 440, kPopRowH = 22;
     static constexpr float kCtxW = 120, kCtxRowH = 24;
-    static constexpr int kPopRows = 15;
-    // rows: header (-1 = factory, -2 = user) or up to two preset indices
+    static constexpr int kPopRows = 14;
+    static constexpr float kPopListY = 94;   // first row of the list, below the group bar
+    // rows: header (1.. = factory group, -2 = user) or up to two preset indices
     struct PopRow { int header; int a, b; };
     std::vector<PopRow> popRows() const {
         std::vector<PopRow> rows;
-        rows.push_back({-1, -1, -1});     // one factory list, in display order
-        for (int i = 0; i < kNumFactory; i += 2) rows.push_back({0, kPresetDisplay[i], i + 1 < kNumFactory ? kPresetDisplay[i + 1] : -1});
+        int at = 0;
+        for (int gi = 0; gi < kNumGroups; ++gi) {   // the factory presets, group by group
+            rows.push_back({gi + 1, -1, -1});
+            const int end = std::min(kNumFactory, at + kGroupSize[gi]);
+            for (int i = at; i < end; i += 2) rows.push_back({0, kPresetDisplay[i], i + 1 < end ? kPresetDisplay[i + 1] : -1});
+            at = end;
+        }
         if (!userPresets.empty()) {
             rows.push_back({-2, -1, -1});
             const int n = (int)userPresets.size();
@@ -760,7 +766,7 @@ private:
     }
     int popMaxScroll() const { return std::max(0, (int)popRows().size() - kPopRows); }
     void openPresets() {
-        presetOpen = true; popHover = -1; pendingDelete = -1; ctxOpen = false;
+        presetOpen = true; popHover = -1; pendingDelete = -1; ctxOpen = false; jumpSel = -1; jumpHover = -1;
         const auto rows = popRows();
         int r = 0;
         for (int i = 0; i < (int)rows.size(); ++i) if (rows[i].a == S.presetIdx || rows[i].b == S.presetIdx) r = i;
@@ -770,7 +776,7 @@ private:
     static float popCellW() { return (kPopW - 48) / 2; }
     // preset under the mouse (or -1), plus the left edge of its cell and which part of the cell is hit
     int popupHit(float x, float y, float* cellX = nullptr, int* zone = nullptr) const {
-        const float lx = kPopX + 24, ly = kPopY + 80, cw = popCellW();
+        const float lx = kPopX + 24, ly = kPopY + kPopListY, cw = popCellW();
         if (x < lx - 6 || x > lx + cw * 2 || y < ly - kPopRowH / 2 || y > ly + kPopRows * kPopRowH - kPopRowH / 2) return -1;
         const int r = (int)((y - (ly - kPopRowH / 2)) / kPopRowH) + popScroll;
         const auto rows = popRows();
@@ -800,6 +806,36 @@ private:
         const float w = tw(fMed, 12.5f, "open presets folder");
         return x >= kPopX + kPopW - 62 - w && x <= kPopX + kPopW - 40 && y >= kPopY + kPopH - 32 && y <= kPopY + kPopH - 8;
     }
+    // the group bar under the title: one name per group (and "user"), click to jump there
+    int jumpCount() const { return kNumGroups + (userPresets.empty() ? 0 : 1); }
+    const char* jumpName(int i) const { return i < kNumGroups ? kGroupNames[i] : "user"; }
+    int jumpHeader(int i) const { return i < kNumGroups ? i + 1 : -2; }
+    float jumpX(int i) const {
+        float x = kPopX + 24;
+        for (int k = 0; k < i; ++k) x += tw(fMono, 9.5f, jumpName(k)) + 18;
+        return x;
+    }
+    int jumpAt(float x, float y) const {
+        if (y < kPopY + 60 || y > kPopY + 80) return -1;
+        for (int i = 0; i < jumpCount(); ++i) {
+            const float jx = jumpX(i), w = tw(fMono, 9.5f, jumpName(i));
+            if (x >= jx - 6 && x <= jx + w + 6) return i;
+        }
+        return -1;
+    }
+    int rowOfHeader(int header) const {
+        const auto rows = popRows();
+        for (int r = 0; r < (int)rows.size(); ++r) if (rows[r].header == header) return r;
+        return 0;
+    }
+    // the group the list is showing now: the one just jumped to, or else the last heading at or near the top row
+    int jumpSel = -1, jumpHover = -1;
+    int jumpShown() const {
+        if (jumpSel >= 0 && jumpSel < jumpCount()) return jumpSel;
+        int best = 0;
+        for (int i = 0; i < jumpCount(); ++i) if (rowOfHeader(jumpHeader(i)) <= popScroll + 1) best = i;
+        return best;
+    }
     std::string presetDir() const {
         std::string p = presetPath(true);
         const size_t k = p.find_last_of("/\\");
@@ -811,7 +847,8 @@ private:
         int zone = 0;
         const int h = popupHit(x, y, nullptr, &zone);
         const int ch = ctxItemAt(x, y);
-        if (h != popHover || zone != popHoverZone || ch != ctxHover) { popHover = h; popHoverZone = zone; ctxHover = ch; host->hostRepaint(); }
+        const int jh = ctxOpen ? -1 : jumpAt(x, y);
+        if (h != popHover || zone != popHoverZone || ch != ctxHover || jh != jumpHover) { popHover = h; popHoverZone = zone; ctxHover = ch; jumpHover = jh; host->hostRepaint(); }
     }
     void popupClick(int button, float x, float y) {
         if (ctxOpen) {
@@ -825,6 +862,10 @@ private:
         const bool inside = x >= kPopX && x <= kPopX + kPopW && y >= kPopY && y <= kPopY + kPopH;
         const bool onClose = inside && x >= kPopX + kPopW - 52 && y <= kPopY + 46;
         if (button == 1 && onPresetFolderLink(x, y)) { openFolderInShell(presetDir()); host->hostRepaint(); return; }
+        if (button == 1 && pendingDelete < 0) {   // group bar: the list glides to that group
+            const int j = jumpAt(x, y);
+            if (j >= 0) { jumpSel = j; popScroll = std::max(0, std::min(rowOfHeader(jumpHeader(j)), popMaxScroll())); host->hostRepaint(); return; }
+        }
         int zone = 0;
         const int item = popupHit(x, y, nullptr, &zone);
         if (pendingDelete >= 0) {              // waiting for "delete? yes / no": anything but yes cancels
@@ -865,8 +906,18 @@ private:
         txt(g, fMono, 8.5f, PX + PW - 66, PY + 28, b, T.ink, 2);
         closeGlyph(g, PX + PW - 40, PY + 16, 14, T.ink);
         ln(g, PX + 24, PY + 56, PX + PW - 24, PY + 56, T.hair);
+        {   // group bar; the red underline slides to the group the list is showing
+            const int shown = jumpShown();
+            for (int i = 0; i < jumpCount(); ++i) {
+                const float jx = jumpX(i);
+                const float hv = clampf(mo.to(mkey(12, (uint32_t)i), i == jumpHover ? 1.f : 0.f, kSpringHover), 0, 1);
+                txt(g, fMono, 9.5f, jx, PY + 65, jumpName(i), mixc(mixc(T.grey, T.ink2, hv), T.ink, i == shown ? 1.f : 0.f));
+            }
+            const float ux = mo.to(mkey(12, 100), jumpX(shown), kSpringUI), uw = mo.to(mkey(12, 101), tw(fMono, 9.5f, jumpName(shown)), kSpringUI);
+            rc(g, ux, PY + 77, uw, 1.5f, T.red);
+        }
         const auto rows = popRows();
-        const float lx = PX + 24, ly = PY + 80, cw = popCellW();
+        const float lx = PX + 24, ly = PY + kPopListY, cw = popCellW();
         const float fs = mo.to(mkey(8, 0), (float)popScroll, kSpringScroll);   // the list glides between rows
         const int base = (int)std::floor(fs);
         const float fr = fs - (float)base;
@@ -879,9 +930,12 @@ private:
             const float y = ly + ((float)k - fr) * kPopRowH;
             const PopRow& row = rows[r];
             if (row.header != 0) {
-                const char* h = row.header == -1 ? "factory" : "user";
-                txt(g, fMono, 8.5f, lx, y - 5, h, T.grey);
-                ln(g, lx + tw(fMono, 8.5f, h) + 10, y, lx + cw * 2 - 12, y, T.hair2);
+                const char* h = row.header > 0 ? kGroupNames[row.header - 1] : "user";
+                txt(g, fMono, 8.5f, lx, y - 5, h, T.ink2);
+                char nb[8]; std::snprintf(nb, sizeof nb, "%d", row.header > 0 ? kGroupSize[row.header - 1] : (int)userPresets.size());
+                const float hx = lx + tw(fMono, 8.5f, h) + 8;
+                txt(g, fMono, 7.5f, hx, y - 4.5f, nb, T.grey);
+                ln(g, hx + tw(fMono, 7.5f, nb) + 10, y, lx + cw * 2 - 12, y, T.hair2);
                 continue;
             }
             for (int c = 0; c < 2; ++c) {
