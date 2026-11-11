@@ -13,9 +13,12 @@ class MercyUI : public UI, public mercy::ViewHost, public mercy::DropCallbacks
 {
 public:
     MercyUI()
-        : UI(DISTRHO_UI_DEFAULT_WIDTH, DISTRHO_UI_DEFAULT_HEIGHT, true),
+        : UI(DISTRHO_UI_DEFAULT_WIDTH, DISTRHO_UI_DEFAULT_HEIGHT, false),
           fView(this, mercy::sessionFromPluginInstance(getPluginInstancePointer()))
     {
+        // The window is sized in real pixels and the view scales itself to whatever size it gets
+        // (DPF's own auto-scaling doubled the size on Retina screens / Windows display scaling).
+        applyScaleFactor(getScaleFactor(), 1.0);
         installDnD();
     }
 
@@ -105,6 +108,22 @@ protected:
     void hostSetOrder(const char* s) override { setState("order", s); }
     void hostRepaint() override { repaint(); }
     void hostResize(unsigned w, unsigned h) override { setSize(w, h); }
+    float hostScaleFactor() override { return (float)fScale; }
+
+    // the screen's scale (Retina = 2, Windows display scaling 125% = 1.25 ...): 100% of MERCY = 960x600 points
+    void applyScaleFactor(double sf, double userScale)
+    {
+        fScale = sf > 0.1 ? sf : 1.0;
+        const double kw = DISTRHO_UI_DEFAULT_WIDTH, kh = DISTRHO_UI_DEFAULT_HEIGHT;
+        setGeometryConstraints((uint)std::lround(kw * 0.75 * fScale), (uint)std::lround(kh * 0.75 * fScale), true, false);
+        setSize((uint)std::lround(kw * userScale * fScale), (uint)std::lround(kh * userScale * fScale));
+    }
+    void uiScaleFactorChanged(double sf) override
+    {
+        const double userScale = getWidth() / (DISTRHO_UI_DEFAULT_WIDTH * fScale);   // keep the size the user picked
+        applyScaleFactor(sf, userScale > 0.5 ? userScale : 1.0);
+    }
+    double fScale = 1.0;
     void hostBrowseFile() override
     {
         FileBrowserOptions opts;

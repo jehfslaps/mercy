@@ -44,6 +44,7 @@ struct ViewHost {
     virtual void hostSetUiState(const char*) {}
     virtual void hostKeyboardFocus(bool /*grab*/) {}
     virtual bool hostReduceMotion() { return false; }   // the OS asks for less motion
+    virtual float hostScaleFactor() { return 1.f; }     // screen pixels per point (Retina 2, Windows scaling 1.25 ...)
 };
 
 static constexpr float kW = 960.f, kH = 600.f;
@@ -532,7 +533,8 @@ public:
         if (modOpen >= 0) { const int h = modItemAt(x, y); if (h != modHover) { modHover = h; host->hostRepaint(); } return true; }
         if (S.page == 1 && S.bakeOpen && bakeMotion(x, y)) return true;
         if (resizing) {
-            const float ns = clampf(std::max(wx / kW, wy / kH), 0.75f, 2.0f);
+            const float sf = host->hostScaleFactor();   // 75% to 200% of MERCY's size, on any screen
+            const float ns = clampf(std::max(wx / kW, wy / kH), 0.75f * sf, 2.0f * sf);
             host->hostResize((unsigned)std::lround(kW * ns), (unsigned)std::lround(kH * ns));
             return true;
         }
