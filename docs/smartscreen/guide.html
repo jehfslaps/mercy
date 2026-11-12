@@ -1,0 +1,63 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+@font-face{font-family:A;src:url(fonts/Archivo.ttf);font-weight:100 900;font-stretch:62% 125%}
+@font-face{font-family:J;src:url(fonts/JBMono.ttf);font-weight:100 800}
+*{box-sizing:border-box;margin:0}
+body{width:1600px;height:1000px;background:#110E12;color:#ECEAEB;font-family:A,sans-serif;position:relative;overflow:hidden}
+.rail{position:absolute;left:0;top:0;bottom:0;width:44px;background:#000}
+.top{position:absolute;left:84px;right:60px;top:34px;display:flex;justify-content:space-between;font-family:J;font-size:15px;color:rgba(236,234,235,.75);border-bottom:1px solid rgba(236,234,235,.25);padding-bottom:12px}
+h1{position:absolute;left:84px;top:84px;font-stretch:125%;font-weight:900;font-size:58px;letter-spacing:-1px;text-shadow:-3px 0 0 rgba(226,41,15,.9),3px 0 0 rgba(71,228,174,.7)}
+.sub{position:absolute;left:86px;top:166px;font-size:22px;color:rgba(236,234,235,.82);max-width:1380px;line-height:1.4}
+.sub b{color:#fff}
+.panel{position:absolute;top:262px;width:680px}
+.p1{left:84px}.p2{left:836px}
+.step{font-family:J;font-size:17px;color:#E2290F;margin-bottom:10px;letter-spacing:.06em}
+.step span{color:#ECEAEB;font-family:A;font-size:28px;font-weight:600;letter-spacing:0;margin-left:10px}
+.win{position:relative;background:#0067B8;height:470px;padding:34px 38px;font-family:"Segoe UI",Arial,sans-serif;color:#fff;box-shadow:0 20px 50px rgba(0,0,0,.5)}
+.win .x{position:absolute;right:16px;top:8px;font-size:22px;opacity:.9}
+.win h2{font-weight:300;font-size:38px;margin:14px 0 22px}
+.win p{font-size:17px;line-height:1.45;max-width:560px}
+.win .more{margin-top:14px;font-size:17px;text-decoration:underline}
+.win .meta{margin-top:20px;font-size:17px;line-height:1.8}
+.btns{position:absolute;right:30px;bottom:28px;display:flex;gap:12px}
+.btn{border:2px solid #fff;padding:9px 26px;font-size:17px;min-width:130px;text-align:center}
+.btn.ghost{opacity:.85}
+.ring{position:absolute;border:5px solid #E2CC1E;border-radius:999px;box-shadow:0 0 0 6px rgba(226,204,30,.25)}
+.arrow{position:absolute;font-family:A;font-weight:900;font-size:70px;color:#E2CC1E;line-height:1}
+.tag{position:absolute;background:#E2CC1E;color:#111;font-family:J;font-weight:700;font-size:18px;padding:6px 12px}
+.foot{position:absolute;left:84px;right:60px;bottom:34px;display:flex;justify-content:space-between;align-items:flex-end;font-family:J;font-size:15px;color:#8F8A92}
+.foot .ok{font-family:A;font-size:21px;color:rgba(236,234,235,.85);max-width:1080px;line-height:1.4}
+.foot .ok b{color:#47E4AE}
+.blocks{position:absolute;right:60px;top:84px;width:120px;height:80px}
+</style></head><body>
+<div class="rail"></div>
+<div class="top"><span><b style="color:#fff;font-weight:500">mercy</b> / install on windows</span><span>slapworx</span></div>
+<div class="blocks"><div style="position:absolute;left:0;top:0;width:50px;height:50px;background:#47E4AE"></div><div style="position:absolute;left:40px;top:40px;width:28px;height:28px;background:#DC7F89"></div><div style="position:absolute;left:68px;top:62px;width:10px;height:10px;background:#E2290F"></div><div style="position:absolute;left:78px;top:52px;width:10px;height:10px;background:#E2290F"></div></div>
+<h1>blue window? two clicks.</h1>
+<div class="sub">When you run <b>Install MERCY.exe</b>, Windows may show a blue <b>"Windows protected your PC"</b> box. That's normal for new software from small developers. It doesn't mean anything is wrong.</div>
+
+<div class="panel p1">
+  <div class="step">01<span>Click "More info"</span></div>
+  <div class="win"><div class="x">✕</div>
+    <h2>Windows protected your PC</h2>
+    <p>Microsoft Defender SmartScreen prevented an unrecognized app from starting. Running this app might put your PC at risk.</p>
+    <div class="more">More info</div>
+    <div class="btns"><div class="btn ghost">Don't run</div></div>
+  </div>
+  <div class="ring" style="left:22px;top:203px;width:120px;height:48px"></div>
+  <div class="tag" style="left:160px;top:211px">← click here</div>
+</div>
+
+<div class="panel p2">
+  <div class="step">02<span>Click "Run anyway"</span></div>
+  <div class="win"><div class="x">✕</div>
+    <h2>Windows protected your PC</h2>
+    <p>Microsoft Defender SmartScreen prevented an unrecognized app from starting. Running this app might put your PC at risk.</p>
+    <div class="meta">App: &nbsp;Install MERCY.exe<br>Publisher: &nbsp;Unknown publisher</div>
+    <div class="btns"><div class="btn">Run anyway</div><div class="btn ghost">Don't run</div></div>
+  </div>
+  <div class="ring" style="left:340px;top:429px;width:182px;height:66px"></div>
+  <div class="tag" style="left:362px;top:382px">click here ↓</div>
+</div>
+
+<div class="foot"><div class="ok">Then click <b>Yes</b> when Windows asks to allow changes, and the MERCY installer opens. <br>Don't click the ✕ or "Don't run": that cancels the install.</div><span>mercy · slapworx.net</span></div>
+</body></html>

@@ -71,6 +71,7 @@ if [ "$PLATFORM" = "mac" ]; then
   fi
 else
   NAME="Mercy_v${VER}_Windows.zip"
+  cp "$ROOT/package/Windows warning - how to install.png" "$M/"   # the SmartScreen "Run anyway" picture
   # Install MERCY.exe (NSIS): VST3 + CLAP into Common Files, an uninstaller, the manual in the Start menu
   P=$(mktemp -d)
   cp -R "$BIN/Mercy.vst3" "$BIN/Mercy.clap" "$P/"
