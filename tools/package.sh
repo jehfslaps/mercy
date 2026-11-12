@@ -55,6 +55,20 @@ if [ "$PLATFORM" = "mac" ]; then
   SIGN=(); [ -n "$MAC_INSTALLER_IDENTITY" ] && SIGN=(--sign "$MAC_INSTALLER_IDENTITY")   # "Developer ID Installer: ..." once Apple is set up
   productbuild --quiet --distribution "$P/distribution.xml" --resources "$P/res" --package-path "$P" "${SIGN[@]}" "$M/Install MERCY.pkg"
   rm -rf "$P"
+  # notarize: Apple checks the installer (and every plugin inside it); then the tickets are stapled on, so
+  # Macs open it without asking, even offline. The first notarization on a new account can take a while:
+  # if Apple hasn't answered within 45 minutes the zip still goes out signed, and Macs check online instead.
+  mkdir -p "$ROOT/out"
+  if [ -n "$MAC_INSTALLER_IDENTITY" ] && [ -n "$APPLE_ID" ] && [ -n "$APPLE_APP_PASSWORD" ] && [ -n "$APPLE_TEAM_ID" ]; then
+    if xcrun notarytool submit "$M/Install MERCY.pkg" --apple-id "$APPLE_ID" --password "$APPLE_APP_PASSWORD" \
+         --team-id "$APPLE_TEAM_ID" --wait --timeout 45m | tee "$ROOT/out/notarize.log" && grep -q "status: Accepted" "$ROOT/out/notarize.log"; then
+      xcrun stapler staple "$M/Install MERCY.pkg"
+      for b in AU/Mercy.component VST3/Mercy.vst3 CLAP/Mercy.clap; do xcrun stapler staple "$M/manual install/$b" || true; done
+      echo "notarized and stapled"
+    else
+      echo "notarization not finished (see out/notarize.log); shipping signed, not stapled"
+    fi
+  fi
 else
   NAME="Mercy_v${VER}_Windows.zip"
   # Install MERCY.exe (NSIS): VST3 + CLAP into Common Files, an uninstaller, the manual in the Start menu

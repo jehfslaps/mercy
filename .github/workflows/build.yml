@@ -142,11 +142,41 @@ jobs:
           lipo -archs bin/mac/Mercy.vst3/Contents/MacOS/Mercy
           lipo -archs bin/mac/Mercy.component/Contents/MacOS/Mercy
           test "$(lipo -archs bin/mac/Mercy.component/Contents/MacOS/Mercy)" = "arm64"
-      - name: Sign (ad-hoc for now; Developer ID once the Apple membership is set up)
+      - name: Sign (Developer ID when the Apple secrets are set; ad-hoc otherwise)
+        env:
+          MAC_APP_P12_BASE64: ${{ secrets.MAC_APP_P12_BASE64 }}
+          MAC_INSTALLER_P12_BASE64: ${{ secrets.MAC_INSTALLER_P12_BASE64 }}
+          MAC_P12_PASSWORD: ${{ secrets.MAC_P12_PASSWORD }}
         run: |
-          codesign --force --deep --sign - bin/mac/Mercy.vst3
-          codesign --force --deep --sign - bin/mac/Mercy.component
-          codesign --force --deep --sign - bin/mac/Mercy.clap
+          if [ -n "$MAC_APP_P12_BASE64" ] && [ -n "$MAC_P12_PASSWORD" ]; then
+            KC="$RUNNER_TEMP/mercy.keychain-db"; KP=$(openssl rand -hex 16)
+            security create-keychain -p "$KP" "$KC"
+            security set-keychain-settings -lut 3600 "$KC"
+            security unlock-keychain -p "$KP" "$KC"
+            echo "$MAC_APP_P12_BASE64" | base64 --decode > "$RUNNER_TEMP/app.p12"
+            security import "$RUNNER_TEMP/app.p12" -k "$KC" -P "$MAC_P12_PASSWORD" -T /usr/bin/codesign -T /usr/bin/productbuild
+            if [ -n "$MAC_INSTALLER_P12_BASE64" ]; then
+              echo "$MAC_INSTALLER_P12_BASE64" | base64 --decode > "$RUNNER_TEMP/installer.p12"
+              security import "$RUNNER_TEMP/installer.p12" -k "$KC" -P "$MAC_P12_PASSWORD" -T /usr/bin/codesign -T /usr/bin/productbuild
+            fi
+            rm -f "$RUNNER_TEMP"/*.p12
+            security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KP" "$KC" >/dev/null
+            security list-keychains -d user -s "$KC" $(security list-keychains -d user | tr -d '"')
+            security find-identity -v -p codesigning "$KC"
+            ID=$(security find-identity -v -p codesigning "$KC" | grep -o '"Developer ID Application: [^"]*"' | head -1 | tr -d '"')
+            INST=$(security find-identity -v "$KC" | grep -o '"Developer ID Installer: [^"]*"' | head -1 | tr -d '"')
+            for b in Mercy.vst3 Mercy.component Mercy.clap; do
+              codesign --force --options runtime --timestamp --sign "$ID" "bin/mac/$b"
+              codesign --verify --strict --verbose=2 "bin/mac/$b"
+            done
+            echo "MAC_INSTALLER_IDENTITY=$INST" >> "$GITHUB_ENV"
+            echo "MERCY_SIGNED=1" >> "$GITHUB_ENV"
+          else
+            echo "No Apple signing secrets yet: ad-hoc signing"
+            codesign --force --deep --sign - bin/mac/Mercy.vst3
+            codesign --force --deep --sign - bin/mac/Mercy.component
+            codesign --force --deep --sign - bin/mac/Mercy.clap
+          fi
       - name: Sound check render (Mac)
         run: |
           mkdir -p out/render-mac
@@ -155,7 +185,11 @@ jobs:
       - name: Screenshots (Mac)
         continue-on-error: true
         run: tools/ci_run.sh "Mac screenshots" tools/screenshots.sh mac out/screens-mac
-      - name: Package Mac zip
+      - name: Package Mac zip (signed and notarized installer when the Apple secrets are set)
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: tools/package.sh mac bin/mac $VERSION
       - name: Publish to the "Latest build" release
         if: github.event_name != 'pull_request'
