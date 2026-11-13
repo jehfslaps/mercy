@@ -136,7 +136,7 @@ ul.dash li::before { content: ""; position: absolute; left: 0; top: 2.3mm; width
   <ol class="steps">
     <li>Close your DAW.</li>
     <li>Unzip the download and double-click <b>Install MERCY.exe</b>.</li>
-    <li>If Windows shows <b>"Windows protected your PC"</b>, click <b>More info</b>, then <b>Run anyway</b>. Then click <b>Yes</b> when Windows asks to allow changes.</li>
+    <li>If Windows shows <b>"Windows protected your PC"</b>, click <b>More info</b>, then <b>Run anyway</b>. Then click <b>Yes</b> when Windows asks to allow changes. The picture <b>Windows warning - how to install.png</b> in the Windows download shows where to click.</li>
     <li>Click <b>Next</b>, keep <b>VST3</b> and <b>CLAP</b> ticked (or untick the one you don't use), then <b>Install</b>.</li>
     <li>Open your DAW and scan for new plugins. FL Studio: <b>Options › Manage plugins › Find installed plugins</b>. MERCY is listed under <b>slapworx</b>.</li>
   </ol>
@@ -145,12 +145,10 @@ ul.dash li::before { content: ""; position: absolute; left: 0; top: 2.3mm; width
   <ol class="steps">
     <li>Quit your DAW.</li>
     <li>Unzip the download and double-click <b>Install MERCY.pkg</b>.</li>
-    <li>If macOS says it can't check the installer, <b>right-click</b> (or Control-click) it, choose <b>Open</b>, then <b>Open</b> again.</li>
     <li>Click <b>Continue</b>. On the next screen, keep <b>Audio Unit</b>, <b>VST3</b> and <b>CLAP</b> ticked, or untick what you don't use. Click <b>Install</b> and enter your Mac password.</li>
     <li>Open your DAW. In Logic Pro and GarageBand, MERCY is under <b>Audio Units › slapworx › Mercy</b>.</li>
   </ol>
-  <div class="note"><b>Installing by hand</b> instead? The plain plugin files are in the <b>manual install</b> folder. Windows: copy <code>Mercy.vst3</code> into <code>C:\Program Files\Common Files\VST3\</code> and <code>Mercy.clap</code> into <code>C:\Program Files\Common Files\CLAP\</code> (unblock the zip first: right-click › Properties › Unblock). Mac: copy them into <code>/Library/Audio/Plug-Ins/</code> (Components, VST3, CLAP). If macOS then won't open them, run this in Terminal:
-  <pre>sudo xattr -dr com.apple.quarantine /Library/Audio/Plug-Ins/Components/Mercy.component /Library/Audio/Plug-Ins/VST3/Mercy.vst3 /Library/Audio/Plug-Ins/CLAP/Mercy.clap</pre></div>
+  <div class="note"><b>Installing by hand</b> instead? The plain plugin files are in the <b>manual install</b> folder. Windows: copy <code>Mercy.vst3</code> into <code>C:\Program Files\Common Files\VST3\</code> and <code>Mercy.clap</code> into <code>C:\Program Files\Common Files\CLAP\</code> (unblock the zip first: right-click › Properties › Unblock). Mac: copy them into <code>/Library/Audio/Plug-Ins/</code> (Components, VST3, CLAP). The Mac installer and plugins are signed and checked by Apple, so macOS opens them without extra steps.</div>
   <p>Intel Macs aren't supported. MERCY sounds exactly the same on Windows and Mac: every build is checked so both render bit-identical audio, and presets and projects move between them freely.</p>
   <div class="foot"><span>mercy · user manual</span><span>03</span></div>
 </section>

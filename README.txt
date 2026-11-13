@@ -27,7 +27,8 @@ INSTALL - WINDOWS
 -----------------
 1. Close your DAW.
 2. Double-click "Install MERCY.exe". If Windows says "Windows protected your
-   PC", click More info > Run anyway.
+   PC", click More info > Run anyway. The picture "Windows warning - how to
+   install.png" (in the Windows zip) shows where to click.
 3. Keep VST3 and CLAP ticked (or untick the one you don't use) > Install.
 4. Open FL Studio: Options > Manage plugins > Find installed plugins.
 Uninstall: Settings > Apps > Installed apps > MERCY (slapworx).
@@ -39,8 +40,8 @@ right-click > Properties > Unblock).
 INSTALL - MAC (Apple Silicon: M1 or newer)
 ------------------------------------------
 1. Quit your DAW.
-2. Double-click "Install MERCY.pkg". If macOS can't check it, right-click it
-   > Open > Open.
+2. Double-click "Install MERCY.pkg" (it's signed and checked by Apple, so it
+   opens straight away).
 3. Continue, keep Audio Unit / VST3 / CLAP ticked > Install (your Mac
    password).
 4. Open your DAW. Logic / GarageBand: Audio Units > slapworx > Mercy. If it
