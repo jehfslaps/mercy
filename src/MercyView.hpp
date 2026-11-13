@@ -298,6 +298,7 @@ public:
     explicit MercyView(ViewHost* h, Session* s = nullptr) : sessRef(s ? nullptr : std::make_shared<Session>()), S(s ? *s : *sessRef), host(h) { init(); }
     MercyView(ViewHost* h, std::shared_ptr<Session> s) : sessRef(s ? std::move(s) : std::make_shared<Session>()), S(*sessRef), host(h) { init(); }
     void init() {
+        for (float& f : sentValue) f = NAN;
         if (!S.touched && !S.savedUi.empty()) applyUiState(S.savedUi.c_str());
         lastUiState = encodeUiState();
         if (S.bakeOpen && S.baker) bakeItems = S.baker->snapshot();
@@ -308,6 +309,15 @@ public:
     // ---------------------------------------------------------------- host -> view
     void paramChanged(uint32_t p, float v) {
         if (p >= kNumParams) return;
+        if (p < kFirstOutputParam && !std::isnan(sentValue[p])) {
+            // the host handing back a value we just set, with a little rounding (VST3 keeps values as 0..1
+            // floats, so a -32.5 dB threshold can come back as -32.49999): keep our exact value, so presets
+            // stay exactly as saved, bakes match on every DAW, and nothing reads as "edited" by itself
+            const ParamInfo& pi = kParamInfo[p];
+            const float tol = (pi.isInt || pi.isBool) ? 0.25f : 1e-4f * (pi.max - pi.min);
+            if (std::fabs(sentValue[p] - v) <= tol) { S.values[p] = sentValue[p]; return; }
+            sentValue[p] = NAN;   // a real change (automation, a loaded project): take it as it is
+        }
         const bool changed = std::fabs(S.values[p] - v) > 1e-6f;
         S.values[p] = v;
         if (changed && p < kFirstOutputParam && !applyingPreset && p != pBypass && S.userTouched) S.presetModified = true;
@@ -723,6 +733,7 @@ public:
 
 private:
     ViewHost* host;
+    float sentValue[kNumParams];   // last value we sent each parameter (NAN = none pending)
     std::vector<Ctl> ctls;
     int hoverIdx = -1, dragIdx = -1, editIdx = -1;
     std::string editText;
@@ -1912,6 +1923,7 @@ private:
     // ---------------------------------------------------------------- actions
     void setValue(uint32_t p, float v) {
         S.values[p] = v;
+        if (p < kNumParams) sentValue[p] = v;   // so the host's rounded echo of it is recognised
         S.userTouched = true;
         if (p != pBypass && !applyingPreset) S.presetModified = true;
         host->hostSetParam(p, v);
