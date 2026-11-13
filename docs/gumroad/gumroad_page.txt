@@ -1,0 +1,62 @@
+NAME
+MERCY - Drum Processor (Free)
+
+PRICE
+$0+  (pay what you want, minimum $0)
+
+SUMMARY (one line, shows under the name)
+A free drum processor inspired by three eras of Kanye West. VST3, CLAP and AU for Windows and Mac.
+
+DESCRIPTION
+MERCY is a drum processor built around three eras of Kanye West's sound: My Beautiful Dark Twisted Fantasy, Watch the Throne and Yeezus. Pick an era, push three sliders, and your drums get the weight, grit and character of that era.
+
+THREE ERAS, THREE SLIDERS
+- fantasy: big, glossy and dark. Huge snares, thick lows
+- throne: soul-sample swagger, punchy and expensive. Tight rooms, crisp chops
+- yeezus: industrial and distorted. Crushed lows, hard clipping, slamming gates
+- squash, dirt and age: three sliders that shape everything at once
+
+GO DEEPER
+- 10 modules you can open up and tweak: transient, shape, sampler, preamp, squash, tone, weight, verb, clip and gate/width
+- Drag the modules into any order you like
+- 76 presets in 7 groups: start, punch, grit, low end, space, gated and eras
+- Save your own presets
+
+BAKE
+- Drop in one file or a whole folder and get it back processed
+- Capture: grab the last few bars of whatever is playing, then drag it straight into your playlist
+- Export everything to your desktop in one click
+
+ALSO
+- A/B compare, bypass, auto gain and 2x quality
+- Light and dark mode, resizable window
+- Sounds exactly the same on Windows and Mac
+
+WHAT YOU GET
+- Windows installer (VST3 + CLAP, 64-bit)
+- Mac installer (AU + VST3 + CLAP, Apple Silicon M1 and newer, signed and approved by Apple)
+- A 16-page user manual (PDF)
+
+SYSTEM REQUIREMENTS
+- Windows 10 or 11, 64-bit
+- macOS 11 or newer on Apple Silicon (M1 or newer). Intel Macs aren't supported.
+- Any DAW that loads VST3, CLAP or AU: FL Studio, Ableton Live, Logic Pro, Bitwig, Reaper, Studio One and more
+
+INSTALL
+Unzip and double-click the installer. On Windows, if you see "Windows protected your PC", click More info, then Run anyway. The picture in the Windows download shows where to click.
+
+Made by slapworx: plug-ins + samples. that slap.
+slapworx.net
+
+MERCY is an independent project. It is not affiliated with, endorsed by or connected to Kanye West, Ye, or any of his labels. Album names are used only to describe the style of sound.
+
+FILES TO UPLOAD
+- Mercy_v1.0_Windows.zip
+- Mercy_v1.0_Mac.zip
+
+IMAGES
+- Cover: MERCY_gumroad_cover.png (2560 x 1440)
+- Thumbnail: MERCY_gumroad_thumb.png (1200 x 1200)
+
+SETTINGS
+- Discover: off

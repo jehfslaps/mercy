@@ -45,9 +45,9 @@ static void fillScope(mercy::Session& s){
 }
 int main(int argc,char** argv){
   int mode = argc>1 ? atoi(argv[1]) : 0; const char* out = argc>2? argv[2] : "shot.ppm"; float sc = argc>3? atof(argv[3]):1.f; bool dark = argc>4 ? atoi(argv[4])!=0 : true;
-  Application app; ShotWin win(app,(int)(960),(int)(600),out,dark);
+  Application app; ShotWin win(app,(int)(960*sc),(int)(600*sc),out,dark);   // sc > 1: a bigger window (the view scales to fit)
   fillScope(win.sess);
-  auto click=[&](float x,float y,unsigned t){ win.view.mouse(1,true,x,y,0,t); win.view.mouse(1,false,x,y,0,t+5); };
+  auto click=[&](float x,float y,unsigned t){ x*=sc; y*=sc; win.view.mouse(1,true,x,y,0,t); win.view.mouse(1,false,x,y,0,t+5); };
   win.view.paramChanged(mercy::pMeterGR, 4.2f); win.view.paramChanged(mercy::pMeterOut, -8.0f); win.view.paramChanged(mercy::pMeterIn, -12.4f);
   for(int i=0;i<5;i++) win.view.idle();
   switch(mode){

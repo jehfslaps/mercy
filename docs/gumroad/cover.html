@@ -1,0 +1,34 @@
+<!doctype html><html><head><meta charset="utf-8">
+<style>
+@font-face { font-family: "Archivo"; src: url("../manual/fonts/Archivo.ttf"); font-weight: 100 900; font-stretch: 62% 125%; }
+@font-face { font-family: "JB"; src: url("../manual/fonts/JBMono.ttf"); font-weight: 100 800; }
+:root { --paper:#110E12; --ink:#ECEAEB; --ink2:rgba(236,234,235,.82); --grey:#8F8A92; --hair:rgba(236,234,235,.26);
+        --red:#E2290F; --mint:#47E4AE; --blue:#3B46FF; --pink:#DC7F89; }
+html,body { margin:0; background:var(--paper); color:var(--ink); }
+.c { position:relative; width:1280px; height:720px; overflow:hidden; background:var(--paper); }
+.top { position:absolute; left:56px; right:56px; top:38px; display:flex; justify-content:space-between; font-family:"JB"; font-size:13px; color:var(--ink2); border-bottom:1px solid var(--hair); padding-bottom:12px; }
+.top b { color:var(--ink); font-weight:500; }
+.wm { position:absolute; left:50px; top:118px; font-family:"Archivo"; font-stretch:125%; font-weight:900; font-size:150px; line-height:.8; letter-spacing:-.035em; color:var(--blue);
+      text-shadow:-5px 0 0 rgba(226,41,15,.85), 5px 0 0 rgba(71,228,174,.6); }
+.sub { position:absolute; left:58px; top:350px; width:470px; font-family:"Archivo"; font-weight:500; font-size:29px; line-height:1.18; }
+.eras { position:absolute; left:58px; top:488px; font-family:"JB"; font-size:15px; color:var(--ink2); line-height:1.9; }
+.eras i { font-style:normal; display:inline-block; width:10px; height:10px; margin-right:10px; }
+.free { position:absolute; left:58px; bottom:44px; font-family:"JB"; font-size:14px; color:var(--grey); }
+.free b { color:var(--ink); background:var(--red); padding:3px 9px; margin-right:12px; font-weight:600; }
+.shot { position:absolute; right:-36px; top:318px; width:676px; border:1px solid var(--hair); box-shadow:0 30px 80px rgba(0,0,0,.6); }
+.blocks div { position:absolute; }
+</style></head><body>
+<div class="c">
+  <div class="top"><span><b>mercy</b> / drum processor / v1.0</span><span>vst3 · clap · au</span></div>
+  <div class="wm">mercy.</div>
+  <div class="sub">A drum processor inspired by three eras of Kanye West.</div>
+  <div class="eras"><i style="background:var(--blue)"></i>fantasy<br><i style="background:var(--mint)"></i>throne<br><i style="background:var(--red)"></i>yeezus</div>
+  <img class="shot" src="ui_throne.png">
+  <div class="blocks">
+    <div style="right:668px;bottom:58px;width:64px;height:64px;background:var(--mint)"></div>
+    <div style="right:636px;bottom:26px;width:34px;height:34px;background:var(--pink)"></div>
+    <div style="right:626px;bottom:18px;width:10px;height:10px;background:var(--red)"></div>
+  </div>
+  <div class="free"><b>free</b>windows + mac · by slapworx</div>
+</div>
+</body></html>
