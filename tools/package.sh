@@ -1,7 +1,7 @@
 #!/bin/bash
 # Build the release zip.
 #   tools/package.sh windows <bindir> <version>   -> Mercy_v<version>_Windows.zip  (Install Mercy.exe; VST3 + CLAP)
-#   tools/package.sh mac     <bindir> <version>   -> Mercy_v<version>_Mac.zip      (Install Mercy.pkg; AU + VST3 + CLAP, Apple Silicon)
+#   tools/package.sh mac     <bindir> <version>   -> Mercy_v<version>_Mac.zip      (Install Mercy.pkg; AU + VST3 + CLAP, universal: Apple Silicon + Intel)
 # Both zips also carry the manual, the readme, the licenses and the plain plugin files ("manual install").
 #   tools/package.sh teaser  <bindir> <version>   -> 000_Windows.zip              (VST3 + CLAP)
 set -e

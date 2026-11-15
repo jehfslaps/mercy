@@ -27,9 +27,8 @@ ifeq ($(WINDOWS),true)
 LINK_FLAGS += -lole32 -luuid -lshell32
 TARGETS = vst3 clap
 else ifeq ($(MACOS),true)
-# Apple Silicon only
-BUILD_CXX_FLAGS += -arch arm64 -mmacosx-version-min=11.0
-LINK_FLAGS += -arch arm64 -mmacosx-version-min=11.0
+# Mac: one architecture per build. CI builds arm64 and x86_64 separately (CFLAGS/CXXFLAGS/LDFLAGS =
+# "-arch <arch> -mmacosx-version-min=10.15") and tools/mac_universal.sh joins them into universal bundles.
 TARGETS = vst3 au clap
 else
 # Linux: only used for the tests and screenshots

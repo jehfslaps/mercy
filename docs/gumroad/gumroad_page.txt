@@ -35,12 +35,12 @@ ALSO
 
 WHAT YOU GET
 - Windows installer (VST3 + CLAP, 64-bit)
-- Mac installer (AU + VST3 + CLAP, Apple Silicon M1 and newer, signed and approved by Apple)
+- Mac installer (AU + VST3 + CLAP, Apple Silicon and Intel, signed and approved by Apple)
 - A 16-page user manual (PDF)
 
 SYSTEM REQUIREMENTS
 - Windows 10 or 11, 64-bit
-- macOS 11 or newer on Apple Silicon (M1 or newer). Intel Macs aren't supported.
+- macOS 10.15 or newer, Apple Silicon (M1 and newer) or Intel
 - Any DAW that loads VST3, CLAP or AU: FL Studio, Ableton Live, Logic Pro, Bitwig, Reaper, Studio One and more
 
 INSTALL

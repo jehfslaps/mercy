@@ -1,5 +1,5 @@
 Mercy  -  drum processor  -  by slapworx
-version 1.0  -  Windows 64-bit (VST3 + CLAP)  -  Mac, Apple Silicon (AU + VST3 + CLAP)
+version 1.0  -  Windows 64-bit (VST3 + CLAP)  -  Mac, Apple Silicon + Intel (AU + VST3 + CLAP)
 slapworx.net
 
 The full guide is Mercy_User_Manual.pdf, in this folder.
@@ -37,8 +37,8 @@ C:\Program Files\Common Files\VST3\ and ...\CLAP\ (unblock the zip first:
 right-click > Properties > Unblock).
 
 
-INSTALL - MAC (Apple Silicon: M1 or newer)
-------------------------------------------
+INSTALL - MAC (Apple Silicon or Intel, macOS 10.15 or newer)
+------------------------------------------------------------
 1. Quit your DAW.
 2. Double-click "Install Mercy.pkg" (it's signed and checked by Apple, so it
    opens straight away).
@@ -49,7 +49,7 @@ INSTALL - MAC (Apple Silicon: M1 or newer)
    "Reset & Rescan Selection".
 By hand instead: copy the files in "manual install" to /Library/Audio/Plug-Ins/
 (Components, VST3, CLAP).
-Intel Macs aren't supported.
+One download works on every Mac: Apple Silicon (M1 and newer) and Intel.
 
 
 THE MAIN PAGE

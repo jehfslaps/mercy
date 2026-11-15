@@ -127,21 +127,30 @@ jobs:
   mac:
     runs-on: macos-15
     env:
-      MACOSX_DEPLOYMENT_TARGET: "11.0"
+      MACOSX_DEPLOYMENT_TARGET: "10.15"
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-      - name: Build VST3 + AU + CLAP (arm64)
+      - name: Build VST3 + AU + CLAP (universal, Apple Silicon + Intel)
         run: |
-          MAC="BUILD_DIR_SUFFIX=-mac DPF_BUILD_DIR=../build/mac DPF_TARGET_DIR=../bin/mac SKIP_STRIPPING=true"
-          tools/ci_run.sh "Mac build" make -C src -j4 $MAC
-          tools/ci_run.sh "Mac render tool" make -C src render $MAC
-      - name: Apple Silicon only
+          # each architecture on its own, then joined with lipo (tools/mac_universal.sh)
+          for arch in arm64 x86_64; do
+            S=-mac; [ $arch = x86_64 ] && S=-mac-x86
+            A="-arch $arch -mmacosx-version-min=10.15"
+            MAC="BUILD_DIR_SUFFIX=$S DPF_BUILD_DIR=../build/mac-$arch DPF_TARGET_DIR=../bin/mac-$arch SKIP_STRIPPING=true"
+            tools/ci_run.sh "Mac build ($arch)" make -C src -j4 $MAC "CFLAGS=$A" "CXXFLAGS=$A" "LDFLAGS=$A"
+            tools/ci_run.sh "Mac render tool ($arch)" make -C src render $MAC "CFLAGS=$A" "CXXFLAGS=$A" "LDFLAGS=$A"
+          done
+          tools/ci_run.sh "Universal bundles" tools/mac_universal.sh bin/mac-arm64 bin/mac-x86_64 bin/mac
+      - name: Universal (Apple Silicon + Intel), macOS 10.15+
         run: |
-          lipo -archs bin/mac/Mercy.vst3/Contents/MacOS/Mercy
-          lipo -archs bin/mac/Mercy.component/Contents/MacOS/Mercy
-          test "$(lipo -archs bin/mac/Mercy.component/Contents/MacOS/Mercy)" = "arm64"
+          for b in Mercy.vst3/Contents/MacOS/Mercy Mercy.component/Contents/MacOS/Mercy Mercy.clap/Contents/MacOS/Mercy mercy-render; do
+            echo "$b: $(lipo -archs bin/mac/$b)"
+            lipo -archs bin/mac/$b | grep -q arm64 && lipo -archs bin/mac/$b | grep -q x86_64
+          done
+          vtool -show-build -arch x86_64 bin/mac/Mercy.component/Contents/MacOS/Mercy | grep -E "minos|version" | head -2
+          vtool -show-build -arch arm64 bin/mac/Mercy.component/Contents/MacOS/Mercy | grep -E "minos|version" | head -2
       - name: Sign (Developer ID when the Apple secrets are set; ad-hoc otherwise)
         env:
           MAC_APP_P12_BASE64: ${{ secrets.MAC_APP_P12_BASE64 }}
@@ -182,6 +191,11 @@ jobs:
           mkdir -p out/render-mac
           bin/mac/mercy-render test/dry_loop.wav out/render-mac
           mkdir -p hashes && cp out/render-mac/hashes.txt hashes/mac.txt
+      - name: Sound check render (Mac, Intel half under Rosetta)
+        run: |
+          mkdir -p out/render-mac-intel
+          arch -x86_64 bin/mac/mercy-render test/dry_loop.wav out/render-mac-intel
+          cp out/render-mac-intel/hashes.txt hashes/mac-intel.txt
       - name: Screenshots (Mac)
         continue-on-error: true
         run: tools/ci_run.sh "Mac screenshots" tools/screenshots.sh mac out/screens-mac
@@ -206,6 +220,7 @@ jobs:
           enableCrossOsArchive: true
           path: |
             hashes/mac.txt
+            hashes/mac-intel.txt
       - uses: actions/cache/save@v4
         with:
           key: ci-${{ github.run_id }}-${{ github.run_attempt }}-screens-mac
@@ -224,6 +239,11 @@ jobs:
           tools/ci_run.sh "auval" bash -c 'set -o pipefail; auval -strict -v aufx MrDp Mrcy | tee auval.txt' || true
           echo "::notice title=auval::$(grep -E 'VALIDATION|FAIL|WARNING' auval.txt | head -5 | tr '\n' ' ')"
           grep -q "AU VALIDATION SUCCEEDED" auval.txt
+      - name: auval, Intel half (under Rosetta)
+        run: |
+          tools/ci_run.sh "auval Intel" bash -c 'set -o pipefail; arch -x86_64 auval -strict -v aufx MrDp Mrcy | tee auval-intel.txt' || true
+          echo "::notice title=auval Intel::$(grep -E 'VALIDATION|FAIL|WARNING' auval-intel.txt | head -5 | tr '\n' ' ')"
+          grep -q "AU VALIDATION SUCCEEDED" auval-intel.txt
       - name: pluginval (VST3 and AU, opens the editor)
         run: |
           curl -sSL -o pv.zip https://github.com/Tracktion/pluginval/releases/latest/download/pluginval_macOS.zip
@@ -243,6 +263,13 @@ jobs:
             echo "::notice title=pluginval AU under debugger::attempt $n passed"
           done
           tools/ci_run.sh "pluginval AU (Mac)" $PV --strictness-level 5 --validate-in-process --output-dir out/pluginval-mac --validate ~/Library/Audio/Plug-Ins/Components/Mercy.component
+          # the Intel half, under Rosetta (pluginval's Mac build is universal)
+          if lipo -archs $PV | grep -q x86_64; then
+            tools/ci_run.sh "pluginval VST3 Intel (Mac)" arch -x86_64 $PV --strictness-level 5 --validate-in-process --output-dir out/pluginval-mac-intel --validate ~/Library/Audio/Plug-Ins/VST3/Mercy.vst3
+            tools/ci_run.sh "pluginval AU Intel (Mac)" arch -x86_64 $PV --strictness-level 5 --validate-in-process --output-dir out/pluginval-mac-intel --validate ~/Library/Audio/Plug-Ins/Components/Mercy.component
+          else
+            echo "::warning title=pluginval Intel::pluginval isn't universal, Intel half not run in pluginval"
+          fi
 
   # ---------------------------------------------------------------------------------------- same sound, same look
   compare:
@@ -269,6 +296,7 @@ jobs:
           enableCrossOsArchive: true
           path: |
             hashes/mac.txt
+            hashes/mac-intel.txt
       - uses: actions/cache/restore@v4
         with:
           key: ci-${{ github.run_id }}-${{ github.run_attempt }}-screens-mac
@@ -285,6 +313,17 @@ jobs:
           echo "::notice title=Sound Windows vs Mac::$msg"
           if [ "$same" != "$total" ] || [ "$total" = "0" ]; then
             echo "::error title=Different on Mac::$(diff <(sort -k2 $W) <(sort -k2 $M) | grep '^>' | head -20 | awk '{printf "%s%%0A", $3}')"
+            exit 1
+          fi
+      - name: Sound - Windows vs Mac Intel (must be bit-identical)
+        run: |
+          tr -d '\r' < hashes/windows.txt > w.txt; tr -d '\r' < hashes/mac-intel.txt > mi.txt
+          total=$(wc -l < w.txt); same=$(comm -12 <(sort w.txt) <(sort mi.txt) | wc -l)
+          msg="$total scenarios: $same bit-identical, $((total - same)) different"
+          echo "### Sound: Windows vs Mac Intel" >> $GITHUB_STEP_SUMMARY; echo "$msg" >> $GITHUB_STEP_SUMMARY
+          echo "::notice title=Sound Windows vs Mac Intel::$msg"
+          if [ "$same" != "$total" ] || [ "$total" = "0" ]; then
+            echo "::error title=Different on Mac Intel::$(diff <(sort -k2 w.txt) <(sort -k2 mi.txt) | grep '^>' | head -20 | awk '{printf "%s%%0A", $3}')"
             exit 1
           fi
       - name: Look - reference vs Mac
