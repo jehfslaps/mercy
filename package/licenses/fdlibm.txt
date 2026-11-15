@@ -1,4 +1,4 @@
-MERCY's math functions (MercyMath.hpp) are based on FreeBSD msun / fdlibm:
+Mercy's math functions (MercyMath.hpp) are based on FreeBSD msun / fdlibm:
 
 Copyright (C) 1993 by Sun Microsystems, Inc. All rights reserved.
 

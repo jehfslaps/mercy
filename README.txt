@@ -1,11 +1,11 @@
-MERCY  -  drum processor  -  by slapworx
+Mercy  -  drum processor  -  by slapworx
 version 1.0  -  Windows 64-bit (VST3 + CLAP)  -  Mac, Apple Silicon (AU + VST3 + CLAP)
 slapworx.net
 
-The full guide is MERCY_User_Manual.pdf, in this folder.
+The full guide is Mercy_User_Manual.pdf, in this folder.
 
 
-WHAT MERCY IS
+WHAT Mercy IS
 -------------
 A drum processor inspired by three eras of Kanye West: My Beautiful Dark
 Twisted Fantasy, Watch the Throne and Yeezus. Put it on a break, a loop, a
@@ -16,7 +16,7 @@ kit bus, a kick or a snare.
 - TEN MODULES on the advanced page, in any order: transient, shape, sampler
   (sp-12 / asr / mpc), preamp, squash, tone, weight, verb, clip and
   gate/width. Each has its own presets (click its name).
-- BAKE. Print MERCY's sound into audio files inside the plugin: drop audio,
+- BAKE. Print Mercy's sound into audio files inside the plugin: drop audio,
   bake, drag the result into your DAW. One file, a batch, or a whole folder.
 - CAPTURE. Grab the last 1-16 bars you just heard, or record from the next
   bar line, snapped to your DAW's bars so loops come out whole.
@@ -26,12 +26,12 @@ kit bus, a kick or a snare.
 INSTALL - WINDOWS
 -----------------
 1. Close your DAW.
-2. Double-click "Install MERCY.exe". If Windows says "Windows protected your
+2. Double-click "Install Mercy.exe". If Windows says "Windows protected your
    PC", click More info > Run anyway. The picture "Windows warning - how to
    install.png" (in the Windows zip) shows where to click.
 3. Keep VST3 and CLAP ticked (or untick the one you don't use) > Install.
 4. Open FL Studio: Options > Manage plugins > Find installed plugins.
-Uninstall: Settings > Apps > Installed apps > MERCY (slapworx).
+Uninstall: Settings > Apps > Installed apps > Mercy (slapworx).
 By hand instead: copy the files in "manual install" to
 C:\Program Files\Common Files\VST3\ and ...\CLAP\ (unblock the zip first:
 right-click > Properties > Unblock).
@@ -40,7 +40,7 @@ right-click > Properties > Unblock).
 INSTALL - MAC (Apple Silicon: M1 or newer)
 ------------------------------------------
 1. Quit your DAW.
-2. Double-click "Install MERCY.pkg" (it's signed and checked by Apple, so it
+2. Double-click "Install Mercy.pkg" (it's signed and checked by Apple, so it
    opens straight away).
 3. Continue, keep Audio Unit / VST3 / CLAP ticked > Install (your Mac
    password).

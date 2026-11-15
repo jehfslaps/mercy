@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <installer-gui-script minSpecVersion="2">
-    <title>MERCY @VERSION@</title>
+    <title>Mercy @VERSION@</title>
     <welcome file="welcome.html" mime-type="text/html"/>
     <conclusion file="conclusion.html" mime-type="text/html"/>
     <options customize="always" require-scripts="false" hostArchitectures="arm64"/>

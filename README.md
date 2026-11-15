@@ -1,4 +1,4 @@
-# MERCY (slapworx)
+# Mercy (slapworx)
 
 Drum processor. Windows VST3; Mac VST3 + AU (Apple Silicon). Built with [DPF](https://github.com/DISTRHO/DPF) (submodule at `dpf/`).
 

@@ -17,7 +17,7 @@ Automatic builds: .github/workflows/build.yml (Windows + Mac on GitHub, sound + 
           CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++ AR=x86_64-w64-mingw32-ar \
           WINDRES=x86_64-w64-mingw32-windres
 3. Native Linux build:  cd src && make
-4. Same sound everywhere (1.9): strict floating point (-fno-fast-math -ffp-contract=off) and MERCY's own
+4. Same sound everywhere (1.9): strict floating point (-fno-fast-math -ffp-contract=off) and Mercy's own
    math functions (src/MercyMath.hpp, fdlibm-based) instead of each OS's math library, plus denormals
    flushed the same way on x86 and ARM (DenormalGuard in MercyDSP.hpp). Result: bit-identical renders on
    Windows, Mac, Linux, x86 and ARM. Check: test/render.cpp ("make render" builds it with the plugin's
