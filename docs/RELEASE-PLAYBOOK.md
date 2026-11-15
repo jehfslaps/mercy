@@ -1,4 +1,4 @@
-# slapworx: how Mercy 1.0 was released (playbook for the next free plugin)
+# slapworx: how Mercy 1.0 was released (playbook for the next plugin)
 
 Written 2026-11-14 from the Mercy release. Source for everything below: the public repo jehfslaps/mercy (branch main). Copy files from it instead of rewriting them.
 
@@ -6,10 +6,12 @@ Written 2026-11-14 from the Mercy release. Source for everything below: the publ
 - Nothing gets built until he says "Fandango". "Use your best judgment" or a direct instruction also counts as a go.
 - He's easily confused: give big headings and one short step at a time, and walk him through screens.
 - Never type passwords, API keys, tokens, Apple credentials or private signing keys into anything, even with his permission. He adds GitHub secrets and types passwords himself.
+- **Naming (firm):** in all text (installers, file names, manual, readme, Gumroad, website, emails) write the plugin name normally: "Mercy", capital first letter. A stylized lowercase "mercy." is only for graphics and visuals (logo, cover, ad, the plugin's own artwork).
+- **Pricing words:** ask Jeff for every plugin. Mercy is "$0 intro price for a limited time, then $29.99" and must never be called "free". Dewitt is plainly free.
 - Vendor name: "slapworx" (lowercase). Website: slapworx.net. Public version numbers start at 1.0, and internal test numbers never appear publicly. Prices in USD. No copy protection, no AAX.
 
 ## 1. The finished product (what Mercy shipped)
-- Gumroad, free ($0+ pay what you want), Discover OFF. Two downloads:
+- Gumroad: $0 intro price (limited time, then $29.99), Discover OFF. Two downloads:
   - Mercy_v1.0_Windows.zip: Install Mercy.exe (NSIS), "Windows warning - how to install.png", Mercy_User_Manual.pdf, README.txt, licenses/, "manual install/" (plain VST3 + CLAP), source/
   - Mercy_v1.0_Mac.zip: Install Mercy.pkg (signed + notarized + stapled), the manual, README.txt, licenses/, "manual install/" (signed AU/VST3/CLAP bundles), source/
 - Formats: Windows 10/11 64-bit VST3 + CLAP. Mac: Apple Silicon (arm64) macOS 11+, AU + VST3 + CLAP.
@@ -62,7 +64,7 @@ Written 2026-11-14 from the Mercy release. Source for everything below: the publ
 - DeskIn's "File Transfer" mode copies files between the Mac and the PC.
 
 ## 8. Gumroad + website
-- Gumroad page: name "<NAME> - <type> (Free)", price 0 with pay-what-you-want, summary line, description (what it is, features, what you get, system requirements, install note incl. the Windows warning, "Made by slapworx: plug-ins + samples. that slap. slapworx.net"), Discover off. Upload both zips, publish, then test a $0 download logged out and open both zips.
+- Gumroad page: name written normally ("Mercy"), price wording as Jeff decides (see section 0), suggested amount left blank, summary line, description (what it is, features, what you get, system requirements, install note incl. the Windows warning, "Made by slapworx: plug-ins + samples. that slap. slapworx.net"), Discover off. Upload both zips, publish, then test a $0 download logged out and open both zips.
 - Images: cover 2560x1440 and thumbnail 1200x1200, made as HTML in the plugin's look and rendered with Playwright (docs/gumroad/ in the mercy repo). Use a FRESH screenshot of the current version (an old one said "v2.0").
 - If the plugin references a real artist, add a "not affiliated with ..." line to the Gumroad page, readme, website and ads.
 - Then give the website chat a handoff: name, tagline, version, formats/requirements, features, colors/fonts, images, the Gumroad link, the disclaimer, and "downloads only through Gumroad".

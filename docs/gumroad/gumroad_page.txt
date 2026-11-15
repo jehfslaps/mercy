@@ -1,11 +1,12 @@
 NAME
-Mercy - Drum Processor (Free)
+Mercy
 
 PRICE
-$0+  (pay what you want, minimum $0)
+$0 intro price for a limited time, then $29.99. Never call it "free".
+(Gumroad shows $0 as pay-what-you-want; leave the suggested amount blank.)
 
 SUMMARY (one line, shows under the name)
-A free drum processor inspired by three eras of Kanye West. VST3, CLAP and AU for Windows and Mac.
+$0 intro price for a limited time. A drum processor inspired by three eras of Kanye West. VST3, CLAP and AU for Windows and Mac.
 
 DESCRIPTION
 Mercy is a drum processor built around three eras of Kanye West's sound: My Beautiful Dark Twisted Fantasy, Watch the Throne and Yeezus. Pick an era, push three sliders, and your drums get the weight, grit and character of that era.
