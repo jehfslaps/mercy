@@ -14,13 +14,14 @@ Written 2026-11-14 from the Mercy release. Source for everything below: the publ
 - Gumroad: $0 intro price (limited time, then $29.99), Discover OFF. Two downloads:
   - Mercy_v1.0_Windows.zip: Install Mercy.exe (NSIS), "Windows warning - how to install.png", Mercy_User_Manual.pdf, README.txt, licenses/, "manual install/" (plain VST3 + CLAP), source/
   - Mercy_v1.0_Mac.zip: Install Mercy.pkg (signed + notarized + stapled), the manual, README.txt, licenses/, "manual install/" (signed AU/VST3/CLAP bundles), source/
-- Formats: Windows 10/11 64-bit VST3 + CLAP. Mac: Apple Silicon (arm64) macOS 11+, AU + VST3 + CLAP.
+- Formats: Windows 10/11 64-bit VST3 + CLAP. Mac: universal (Apple Silicon + Intel), macOS 10.15+, AU + VST3 + CLAP.
 - Website /mercy/ page links to the Gumroad page. Downloads are never hosted on the site itself.
 
 ## 2. GitHub + builds (no Mac needed)
 - GitHub Actions builds everything: .github/workflows/build.yml in jehfslaps/mercy.
   - windows-build: mingw on Ubuntu (plus nsis from apt), then makes the installer.
-  - mac: macos-15 runner (arm64). Builds, signs, notarizes and packages.
+  - mac: macos-15 runner (arm64). Builds arm64 and x86_64 separately (CFLAGS/CXXFLAGS/LDFLAGS = "-arch <arch> -mmacosx-version-min=10.15", separate BUILD_DIR_SUFFIX), joins them with tools/mac_universal.sh (lipo), checks both arches + minos 10.15, then signs, notarizes and packages. distribution.xml: hostArchitectures="arm64,x86_64", os-version min 10.15.
+  - Intel is tested on the same runner under Rosetta: `arch -x86_64` for the sound-check render (must match Windows bit-for-bit), auval and pluginval.
   - windows-check: real Windows render + pluginval. compare: Windows vs Mac bit-identical renders, plus a screenshot look-compare (that one is often red; harmless).
 - **Billing:** Jeff's GitHub billing is broken, so private repos get no Actions minutes until about Dec 1. Mercy's repo was made PUBLIC to get free minutes. Do the same (or a public mirror repo, like jehfslaps/dewitt-airliner).
 - **Downloads stay private:** a "hide-downloads" job runs first and keeps the "latest-build" release as a DRAFT (only the owner sees it), so the public repo doesn't hand out the installers. The workspace downloads assets with: gh api -H "Accept: application/octet-stream" repos/jehfslaps/<repo>/releases/assets/<id>
@@ -53,7 +54,7 @@ Written 2026-11-14 from the Mercy release. Source for everything below: the publ
 - docs/manual/manual.html + render.js (Playwright) renders the PDF (16 pages for Mercy). Same fonts/colors as the plugin. Install section written for the installers. Copy the structure.
 
 ## 6. Bugs we hit (check every new plugin for these)
-1. **Retina Mac: window 4x too big, clicks miss.** DPF's automatic scaling scales twice. Use `UI(w, h, false)`, size in real pixels × getScaleFactor() with setGeometryConstraints(..., false), keep the user's size in uiScaleFactorChanged, and draw relative to getWidth()/getHeight(). Full write-up in project doc dpf/RETINA-RULE.md. Test with DPF_SCALE_FACTOR=2 on Linux. A rented cloud Mac usually runs at 1x and won't show it.
+1. **Retina Mac: window 4x too big, clicks miss.** DPF's automatic scaling scales twice. Use `UI(w, h, false)`, size in real pixels × getScaleFactor() with setGeometryConstraints(..., false), keep the user's size in uiScaleFactorChanged, and draw relative to getWidth()/getHeight(). Full write-up in project doc dpf/RETINA-RULE.md. Test with DPF_SCALE_FACTOR=2 on Linux (test/embedtest.c: the window must be 2x, not 4x, and a click on the advanced tab must open it). A rented cloud Mac usually runs at 1x and won't show it.
 2. **Presets show "*" / bakes named "...edit" on Mac (FL Studio VST3).** The host echoes our own parameter values back with float32 rounding, and the UI treated that as an edit. Fix: remember each value the UI sends (sentValue[p]); when the host echoes something within 1e-4 of the range of it (0.25 for int/bool params), keep the exact value and return. Real changes clear it. Test: test/echotest.cpp (loads every preset, sends VST3-rounded echoes).
 3. **Windows installer `VIProductVersion`** rejects text like "2.1-test4". Use numeric only.
 
