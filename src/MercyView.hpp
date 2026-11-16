@@ -1910,6 +1910,7 @@ private:
             figY[pos] = sy + 50 + rows * 25 + 2;
         }
         curStage = -1;
+        { Ctl& c = add(tToggle, pBypass, 650, 548, 66, 26); c.id = sBypassBox; c.label = "bypass"; }   // same bypass as the main page
         { Ctl& c = add(tButton, -1, 852, 546, 94, 28); c.id = bResetOrder; c.label = "reset order"; }
         { Ctl& c = add(tButton, -1, 744, 546, 80, 30); c.id = bBake; c.label = "bake"; }
     }
@@ -2923,8 +2924,8 @@ private:
                 txt(g, fMed, 14.5f, 142, 477, "auto gain", mixc(T.ink2, T.ink, hv));
                 ln(g, 212, 474, 212, 494, T.ink, 1.5f);
             } else {
-                txt(g, fMed, 13.5f, 354, 551, "bypass", mixc(T.ink2, T.ink, hv));
-                if (onv) rc(g, 402, 552, 10, 10, T.red); else ro(g, 402, 552, 10, 10, T.ink, 1.2f);
+                txt(g, fMed, 13.5f, c.x + 4, c.y + 7, "bypass", mixc(T.ink2, T.ink, hv));
+                if (onv) rc(g, c.x + 52, c.y + 8, 10, 10, T.red); else ro(g, c.x + 52, c.y + 8, 10, 10, T.ink, 1.2f);
             }
         } break;
 

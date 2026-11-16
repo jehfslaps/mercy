@@ -78,6 +78,7 @@ another slot to reorder; "reset order" puts it back. The red square on each
 module turns it on/off. Click a module's name for its own presets.
 "eq pre/post" (clip) swaps tone and clip. Verb and weight start off.
 "bake" (bottom right) opens the bake panel: single, bulk and capture.
+"bypass" (next to bake) is the same bypass as on the main page.
 
 
 CONTROLS
