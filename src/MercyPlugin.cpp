@@ -35,7 +35,19 @@ protected:
     {
         const ParamInfo& pi = kParamInfo[index];
         if (index == pBypass) {
-            p.initDesignation(kParameterDesignationBypass);
+            // A plain on/off switch, NOT the host's bypass designation. With the designation, Bitwig
+            // (CLAP) merges it with its device on/off button and stops running the plugin when Mercy's
+            // bypass turns on; DPF only hands UI clicks to the host during process(), so the click that
+            // turns bypass off again never arrives and the effect stays off. Same name, symbol and
+            // range as the old designation, so saved projects restore the same value.
+            p.hints = kParameterIsAutomatable | kParameterIsBoolean | kParameterIsInteger;
+            p.name = "Bypass";
+            p.shortName = "Bypass";
+            p.symbol = "dpf_bypass";
+            p.unit = "";
+            p.ranges.def = 0.0f;
+            p.ranges.min = 0.0f;
+            p.ranges.max = 1.0f;
             return;
         }
         p.name = pi.name;
