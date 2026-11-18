@@ -1,0 +1,121 @@
+# MERCY: CLAP fixes. (1) UI parameter changes call host->request_flush() and params.flush() delivers them, so a click reaches the host even while it is not calling process() (Bitwig bypass bug, 2026-11-17). (2) Latency set during activate() is reported inside activate(), as CLAP requires (clap-validator).
+diff --git a/distrho/src/DistrhoPluginCLAP.cpp b/distrho/src/DistrhoPluginCLAP.cpp
+index 59390921..5d564146 100644
+--- a/distrho/src/DistrhoPluginCLAP.cpp
++++ b/distrho/src/DistrhoPluginCLAP.cpp
+@@ -221,6 +221,7 @@ public:
+          #endif
+           fHost(host),
+           fHostGui(hostGui),
++          fHostParams(static_cast<const clap_host_params_t*>(host->get_extension(host, CLAP_EXT_PARAMS))),
+          #if DPF_CLAP_USING_HOST_TIMER
+           fTimerId(0),
+           fHostTimer(hostTimer),
+@@ -548,6 +549,7 @@ private:
+    #endif
+     const clap_host_t* const fHost;
+     const clap_host_gui_t* const fHostGui;
++    const clap_host_params_t* const fHostParams;
+    #if DPF_CLAP_USING_HOST_TIMER
+     clap_id fTimerId;
+     const clap_host_timer_support_t* const fHostTimer;
+@@ -640,6 +642,13 @@ private:
+             rindex, 0.f
+         };
+         fEventQueue.addEventFromUI(ev);
++        requestFlush();
++    }
++
++    void requestFlush() const
++    {
++        if (fHostParams != nullptr && fHostParams->request_flush != nullptr)
++            fHostParams->request_flush(fHost);
+     }
+ 
+     static void editParameterCallback(void* const ptr, const uint32_t rindex, const bool started)
+@@ -654,6 +663,7 @@ private:
+             rindex, value
+         };
+         fEventQueue.addEventFromUI(ev);
++        requestFlush();
+     }
+ 
+     static void setParameterCallback(void* const ptr, const uint32_t rindex, const float value)
+@@ -767,6 +777,11 @@ public:
+          #endif
+           fHostExtensions(host)
+     {
++       #if DISTRHO_PLUGIN_WANT_LATENCY
++        // start from the latency the plugin set in its constructor, so it isn't reported as a "change"
++        // outside activate() (CLAP only allows clap_host_latency.changed() there)
++        fLastKnownLatency = fPlugin.getLatency();
++       #endif
+         if (const uint32_t paramCount = fPlugin.getParameterCount())
+         {
+             fCachedParameters.setup(paramCount);
+@@ -826,6 +841,18 @@ public:
+         fPlugin.setSampleRate(sampleRate, true);
+         fPlugin.setBufferSize(maxFramesCount, true);
+         fPlugin.activate();
++       #if DISTRHO_PLUGIN_WANT_LATENCY
++        // the plugin may set its latency while activating (e.g. from the sample rate), and CLAP only
++        // allows clap_host_latency.changed() inside activate: report it here, not later from process()
++        const uint32_t latency = fPlugin.getLatency();
++        if (fLastKnownLatency != latency)
++        {
++            fLastKnownLatency = latency;
++            fLatencyChanged = false;
++            if (fHostExtensions.latency != nullptr)
++                fHostExtensions.latency->changed(fHost);
++        }
++       #endif
+     }
+ 
+     void deactivate()
+@@ -853,14 +880,11 @@ public:
+         }
+     }
+ 
+-    bool process(const clap_process_t* const process)
++   #if DISTRHO_PLUGIN_HAS_UI
++    // hand the UI's queued parameter changes to the plugin and the host (from process() and from params.flush())
++    void drainUIEvents(const clap_output_events_t* const outputEvents)
+     {
+-       #if DISTRHO_PLUGIN_WANT_MIDI_INPUT
+-        fMidiEventCount = 0;
+-       #endif
+-
+-       #if DISTRHO_PLUGIN_HAS_UI
+-        if (const clap_output_events_t* const outputEvents = process->out_events)
++        if (outputEvents != nullptr)
+         {
+             const RecursiveMutexTryLocker crmtl(fEventQueue.lock);
+ 
+@@ -905,6 +929,17 @@ public:
+                 fEventQueue.used = 0;
+             }
+         }
++    }
++   #endif
++
++    bool process(const clap_process_t* const process)
++    {
++       #if DISTRHO_PLUGIN_WANT_MIDI_INPUT
++        fMidiEventCount = 0;
++       #endif
++
++       #if DISTRHO_PLUGIN_HAS_UI
++        drainUIEvents(process->out_events);
+        #endif
+ 
+        #if DISTRHO_PLUGIN_WANT_TIMEPOS
+@@ -2397,6 +2432,9 @@ static bool CLAP_ABI clap_plugin_params_text_to_value(const clap_plugin_t* plugi
+ static void CLAP_ABI clap_plugin_params_flush(const clap_plugin_t* plugin, const clap_input_events_t* in, const clap_output_events_t* out)
+ {
+     PluginCLAP* const instance = static_cast<PluginCLAP*>(plugin->plugin_data);
++   #if DISTRHO_PLUGIN_HAS_UI
++    instance->drainUIEvents(out);
++   #endif
+     return instance->flushParameters(in, out, 0);
+ }
+ 
