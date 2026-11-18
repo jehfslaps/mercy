@@ -97,14 +97,14 @@ jobs:
           gh release edit latest-build --notes "Built automatically from commit ${GITHUB_SHA::7} ($(date -u '+%Y-%m-%d %H:%M UTC'))." || true
       - uses: actions/cache/save@v4
         with:
-          key: ci-${{ github.run_id }}-${{ github.run_attempt }}-tools-windows
+          key: ci-${{ github.run_id }}-tools-windows-${{ github.run_attempt }}
           enableCrossOsArchive: true
           path: |
             bin/win/mercy-render.exe
             bin/win/Mercy.vst3
       - uses: actions/cache/save@v4
         with:
-          key: ci-${{ github.run_id }}-${{ github.run_attempt }}-screens-reference
+          key: ci-${{ github.run_id }}-screens-reference-${{ github.run_attempt }}
           enableCrossOsArchive: true
           path: |
             out/screens-reference
@@ -117,7 +117,9 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/cache/restore@v4
         with:
-          key: ci-${{ github.run_id }}-${{ github.run_attempt }}-tools-windows
+          key: ci-${{ github.run_id }}-tools-windows-${{ github.run_attempt }}
+          # a re-run of only this job still finds the files from the earlier attempt
+          restore-keys: ci-${{ github.run_id }}-tools-windows-
           enableCrossOsArchive: true
           path: |
             bin/win/mercy-render.exe
@@ -130,7 +132,7 @@ jobs:
           mkdir -p hashes && cp out/render-windows/hashes.txt hashes/windows.txt
       - uses: actions/cache/save@v4
         with:
-          key: ci-${{ github.run_id }}-${{ github.run_attempt }}-hashes-windows
+          key: ci-${{ github.run_id }}-hashes-windows-${{ github.run_attempt }}
           enableCrossOsArchive: true
           path: |
             hashes/windows.txt
@@ -245,14 +247,14 @@ jobs:
           gh release edit latest-build --notes "Built automatically from commit ${GITHUB_SHA::7} ($(date -u '+%Y-%m-%d %H:%M UTC'))." || true
       - uses: actions/cache/save@v4
         with:
-          key: ci-${{ github.run_id }}-${{ github.run_attempt }}-hashes-mac
+          key: ci-${{ github.run_id }}-hashes-mac-${{ github.run_attempt }}
           enableCrossOsArchive: true
           path: |
             hashes/mac.txt
             hashes/mac-intel.txt
       - uses: actions/cache/save@v4
         with:
-          key: ci-${{ github.run_id }}-${{ github.run_attempt }}-screens-mac
+          key: ci-${{ github.run_id }}-screens-mac-${{ github.run_attempt }}
           enableCrossOsArchive: true
           path: |
             out/screens-mac
@@ -309,26 +311,34 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/cache/restore@v4
         with:
-          key: ci-${{ github.run_id }}-${{ github.run_attempt }}-screens-reference
+          key: ci-${{ github.run_id }}-screens-reference-${{ github.run_attempt }}
+          # a re-run of only this job still finds the files from the earlier attempt
+          restore-keys: ci-${{ github.run_id }}-screens-reference-
           enableCrossOsArchive: true
           path: |
             out/screens-reference
       - uses: actions/cache/restore@v4
         with:
-          key: ci-${{ github.run_id }}-${{ github.run_attempt }}-hashes-windows
+          key: ci-${{ github.run_id }}-hashes-windows-${{ github.run_attempt }}
+          # a re-run of only this job still finds the files from the earlier attempt
+          restore-keys: ci-${{ github.run_id }}-hashes-windows-
           enableCrossOsArchive: true
           path: |
             hashes/windows.txt
       - uses: actions/cache/restore@v4
         with:
-          key: ci-${{ github.run_id }}-${{ github.run_attempt }}-hashes-mac
+          key: ci-${{ github.run_id }}-hashes-mac-${{ github.run_attempt }}
+          # a re-run of only this job still finds the files from the earlier attempt
+          restore-keys: ci-${{ github.run_id }}-hashes-mac-
           enableCrossOsArchive: true
           path: |
             hashes/mac.txt
             hashes/mac-intel.txt
       - uses: actions/cache/restore@v4
         with:
-          key: ci-${{ github.run_id }}-${{ github.run_attempt }}-screens-mac
+          key: ci-${{ github.run_id }}-screens-mac-${{ github.run_attempt }}
+          # a re-run of only this job still finds the files from the earlier attempt
+          restore-keys: ci-${{ github.run_id }}-screens-mac-
           enableCrossOsArchive: true
           path: |
             out/screens-mac
